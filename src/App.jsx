@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import styled from 'styled-components';
 import { useHistory, useLocation } from 'react-router-dom';
+import ReactTooltip from 'react-tooltip';
 import logo from './logo.svg';
 import './App.css';
 import Treemap from './components/Treemap';
@@ -16,19 +17,29 @@ const hierarchyBy = [
   // 'OUPUT',
   // 'PROJECT',
   'OUTPUT_PROJECT',
-  'CATEGORY_LV1',
-  'CATEGORY_LV2',
-  'CATEGORY_LV3',
-  'CATEGORY_LV4',
-  'CATEGORY_LV5',
-  'CATEGORY_LV6',
-  'ITEM_DESCRIPTION',
+  // 'CATEGORY_LV1',
+  'ITEM',
+  // 'CATEGORY_LV2',
+  // 'CATEGORY_LV3',
+  // 'CATEGORY_LV4',
+  // 'CATEGORY_LV5',
+  // 'CATEGORY_LV6',
+  // 'ITEM_DESCRIPTION',
 ];
+
+const THAI_NAME = {
+  MINISTRY: 'กระทรวงหรือเทียบเท่า',
+  BUDGETARY_UNIT: 'หน่วยรับงบฯ',
+  BUDGET_PLAN: 'แผนงาน',
+  OUTPUT_PROJECT: 'ผลผลิต/โครงการ',
+  ITEM: 'รายการ',
+};
 
 function App() {
   const [data, setData] = useState([]);
   const [isLoading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isCompareView, setCompareView] = useState(false);
   const [filters, setFilters] = useState(['all']);
 
   useEffect(() => {
@@ -65,8 +76,18 @@ function App() {
     .map((d) => ({
       ...d,
       AMOUNT: parseFloat(d.AMOUNT.replace(/,/g, '')),
-      OUTPUT_PROJECT: d.OUTPUT + d.PROJECT,
+      OUTPUT_PROJECT: (d.OUTPUT || d.PROJECT) ? (d.OUTPUT + d.PROJECT) : 'ไม่ระบุโครงการ/ผลผลิต',
       MINISTRY: d.MINISTRY.replace(/\([0-9]+\)$/, '').trim(),
+      ITEM: [
+        d.ITEM_DESCRIPTION,
+        d.CATEGORY_LV2,
+        d.CATEGORY_LV3,
+        d.CATEGORY_LV4,
+        d.CATEGORY_LV5,
+        d.CATEGORY_LV6,
+      ]
+        .filter((x) => x)
+        .join(' - '),
     }))
     .filter((d) => +d.FISCAL_YEAR === 2022)
     .filter((d) => filterDataByQuery(d, searchQuery)),
@@ -92,6 +113,11 @@ function App() {
 
   return (
     <FullView>
+      {/*
+      <button type="button" onClick={() => setCompareView(!isCompareView)}>
+      toggle compare view
+      </button>
+       */}
       <div style={{
         height: TOP_BAR_HEIGHT,
         display: 'flex',
@@ -122,7 +148,7 @@ function App() {
                   color: 'white',
                 }}
               >
-                <span style={{ opacity: '0.4' }}>{i > 0 && hierarchyBy[i - 1]}</span>
+                <small style={{ opacity: '0.4' }}>{i > 0 && THAI_NAME[hierarchyBy[i - 1]]}</small>
                 {i > 0 && <br />}
                 <span style={{ textDecoration: i < filters.length - 1 ? 'underline' : 'none' }}>
                   {i === 0
@@ -134,6 +160,19 @@ function App() {
                     : x}
                 </span>
               </button>
+              {i === filters.length - 1
+                && (
+                <>
+                  <small style={{ color: 'white', marginRight: 8, opacity: '0.4' }}>
+                    :
+                  </small>
+                  <small style={{ color: 'white', marginRight: 4, opacity: '0.4' }}>
+                    แบ่งตาม
+                    {' '}
+                    {THAI_NAME[hierarchyBy[i]]}
+                  </small>
+                </>
+                )}
               {i < filters.length - 1
                 && <span style={{ color: 'white', marginRight: 4 }}>&gt;</span>}
             </>
@@ -145,18 +184,36 @@ function App() {
           <input value={searchQuery} onInput={(e) => setSearchQuery(e.target.value)} placeholder="หน่วยรับงบหรือกระทรวง" />
         </div>
       </div>
-      <div style={{
-        position: 'relative',
-        flexGrow: 1,
-      }}
-      >
-        <Treemap
-          data={preprocessedData}
-          isLoading={isLoading}
-          filters={filters}
-          hierarchyBy={hierarchyBy}
-          setFilters={setFilters}
-        />
+      <div style={{ display: 'flex', flexDirection: 'row', flexGrow: 1 }}>
+        <div style={{
+          position: 'relative',
+          flexGrow: 1,
+        }}
+        >
+          <Treemap
+            data={preprocessedData}
+            isLoading={isLoading}
+            filters={filters}
+            hierarchyBy={hierarchyBy}
+            setFilters={setFilters}
+          />
+        </div>
+        {isCompareView
+          && (
+          <div style={{
+            position: 'relative',
+            flexGrow: 1,
+          }}
+          >
+            <Treemap
+              data={preprocessedData}
+              isLoading={isLoading}
+              filters={filters}
+              hierarchyBy={hierarchyBy}
+              setFilters={setFilters}
+            />
+          </div>
+          )}
       </div>
       <div
         style={{
@@ -173,17 +230,21 @@ function App() {
             flexGrow: 1,
           }}
         >
-          **Work-In-Progress** โครงสร้างงบประมาณปี 65
+          **Work-In-Progress**
+          <br />
+          โครงสร้างงบประมาณปี 65
         </div>
-        <div>
+        <div style={{ textAlign: 'right' }}>
           Visualization by
           {' '}
           <a href="https://taepras.com" style={{ color: 'white' }}>Thanawit Prasongpongchai</a>
-          , &shy;Data Source:
+          <br />
+          Data Source:
           {' '}
           <a href="https://docs.google.com/spreadsheets/d/1yyWXSTbq3CD_gNxks-krcSBzbszv3c_2Nq54lckoQ24/edit#gid=343539850" style={{ color: 'white' }}>กลุ่มก้าว Geek</a>
         </div>
       </div>
+      <ReactTooltip multiline />
     </FullView>
   );
 }
