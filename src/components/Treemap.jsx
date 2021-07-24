@@ -103,11 +103,11 @@ function Treemap({
     // .attr('opacity', 0);
 
     treemapPieceGroupEnter
-      .append('rect')
-      // .attr('x', d => d.x0)
-      // .attr('y', d => d.y0)
-      // .style('stroke', 'black')
-      .style('fill', 'slateblue');
+      .append('rect');
+    // .attr('x', d => d.x0)
+    // .attr('y', d => d.y0)
+    // .style('stroke', 'black')
+
     // .style('fill', 'cyan');
 
     treemapPieceGroupEnter
@@ -196,6 +196,8 @@ function Treemap({
         .attr('opacity', 1);
 
       treemapPieceMerged.select('rect')
+        .attr('rx', 2)
+        .style('fill', 'DarkSlateBlue')
         .attr('width', (d) => d.x1 - d.x0)
         .attr('height', (d) => d.y1 - d.y0);
 

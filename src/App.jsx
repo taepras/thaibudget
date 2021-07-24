@@ -124,7 +124,7 @@ function App() {
               >
                 <span style={{ opacity: '0.4' }}>{i > 0 && hierarchyBy[i - 1]}</span>
                 {i > 0 && <br />}
-                <span style={{ textDecoration: 'underline' }}>
+                <span style={{ textDecoration: i < filters.length - 1 ? 'underline' : 'none' }}>
                   {i === 0
                     ? (
                       searchQuery === ''
@@ -134,7 +134,8 @@ function App() {
                     : x}
                 </span>
               </button>
-              <span style={{ color: 'white', marginRight: 4 }}>&gt;</span>
+              {i < filters.length - 1
+                && <span style={{ color: 'white', marginRight: 4 }}>&gt;</span>}
             </>
           ))}
           {/* {JSON.stringify(filters)} */}
@@ -165,7 +166,7 @@ function App() {
           opacity: '0.7',
         }}
       >
-        **Work-In-Progress by
+        **Work-In-Progress** Visualization by
         {' '}
         <a href="https://taepras.com" style={{ color: 'white' }}>Thanawit Prasongpongchai</a>
         , &shy;Data Source:
