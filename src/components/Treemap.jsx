@@ -198,7 +198,7 @@ function Treemap({
             const newFilters = [...filters, d?.data?.key];
             // setFilters(newFilters);
             if (newFilters.length <= hierarchyBy.length) {
-              history.push(`${process.env.PUBLIC_URL}/${newFilters.join('/')}`);
+              history.push(`/${newFilters.join('/')}`);
             }
           }, 300);
         })

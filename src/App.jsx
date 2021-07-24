@@ -97,7 +97,7 @@ function App() {
   const history = useHistory();
 
   useEffect(() => {
-    const f = location.pathname.split('/').slice(2);
+    const f = location.pathname.split('/').slice(1);
     console.log('f', f, f.length > 0 && f[0] ? f : ['all']);
     setFilters(f.length > 0 && f[0] ? f : ['all']);
   }, [location]);
@@ -108,7 +108,7 @@ function App() {
     temp.splice(i + 1);
     // setFilters(temp);
     console.log('temp', temp);
-    history.push(`${process.env.PUBLIC_URL}/${temp.join('/')}`);
+    history.push(`/${temp.join('/')}`);
   };
 
   return (
