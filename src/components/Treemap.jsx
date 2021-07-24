@@ -5,8 +5,17 @@ import React, {
 import * as d3 from 'd3';
 import { nest } from 'd3-collection';
 import useDimensions from 'react-cool-dimensions';
+import ReactTooltip from 'react-tooltip';
 import { useHistory, useLocation } from 'react-router-dom';
 import FullView from './FullView';
+
+const THAI_NAME = {
+  MINISTRY: 'กระทรวงหรือเทียบเท่า',
+  BUDGETARY_UNIT: 'หน่วยรับงบฯ',
+  BUDGET_PLAN: 'แผนงาน',
+  OUTPUT_PROJECT: 'ผลผลิต/โครงการ',
+  ITEM: 'รายการ',
+};
 
 function Treemap({
   data = [],
@@ -99,7 +108,8 @@ function Treemap({
     const treemapPieceGroupEnter = treemapPieceGroup
       .enter()
       .append('g')
-      .attr('class', 'treemap-piece');
+      .attr('class', 'treemap-piece')
+      .attr('data-tip', (d) => `${d?.data?.key}<br>${d?.value?.toLocaleString?.()} บาท`);
     // .attr('opacity', 0);
 
     treemapPieceGroupEnter
@@ -187,13 +197,16 @@ function Treemap({
           setTimeout(() => {
             const newFilters = [...filters, d?.data?.key];
             // setFilters(newFilters);
-            history.push(`${process.env.PUBLIC_URL}/${newFilters.join('/')}`);
+            if (newFilters.length <= hierarchyBy.length) {
+              history.push(`${process.env.PUBLIC_URL}/${newFilters.join('/')}`);
+            }
           }, 300);
         })
         .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
         .transition()
         .duration(600)
-        .attr('opacity', 1);
+        .attr('opacity', 1)
+        .attr('data-tip', (d) => `${d?.data?.key}<br>${d?.value?.toLocaleString?.()} บาท`);
 
       treemapPieceMerged.select('rect')
         .attr('rx', 2)
@@ -251,7 +264,14 @@ function Treemap({
       .attr('opacity', 0)
       .delay(300)
       .remove();
-  }, [svgRef, nestedData, filters, width, height, displayMode, padding, history]);
+
+    ReactTooltip.rebuild();
+    console.log('rebuilding tooltip');
+
+    console.log('too small', root.leaves().filter((d) => (d.x1 - d.x0) * (d.y1 - d.y0) < 100));
+    console.log('too narrow', root.leaves().filter((d) => d.x1 - d.x0 < 20));
+    console.log('too short', root.leaves().filter((d) => d.y1 - d.y0 < 20));
+  }, [svgRef, nestedData, filters, width, height, displayMode, padding, history, hierarchyBy]);
 
   return (
     <div
@@ -288,6 +308,7 @@ function Treemap({
           background: 'linear-gradient(#000f, #0000)',
           width: '100%',
           zIndex: 1,
+          pointerEvents: 'none',
         }}
       />
       <svg ref={svgRef} width={width} height={height}>
@@ -300,6 +321,7 @@ function Treemap({
           background: 'linear-gradient(#0000, #000f)',
           width: '100%',
           zIndex: 1,
+          pointerEvents: 'none',
         }}
       />
     </div>
