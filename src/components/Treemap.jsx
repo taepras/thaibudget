@@ -203,12 +203,15 @@ function Treemap({
 
       treemapPieceMerged.select('text.text-name')
         .attr('x', 5)
-        .attr('y', 20)
+        .attr('y', 8)
+        .attr('dominant-baseline', 'hanging')
         .text((d) => d?.data?.key);
 
       treemapPieceMerged.select('text.text-value')
         .attr('x', 5)
-        .attr('y', 36)
+        .attr('y', 24)
+        .attr('fill-opacity', 0.7)
+        .attr('dominant-baseline', 'hanging')
         .attr('opacity', 1)
         .text((d) => `${d.value.toLocaleString()} บาท`);
     }
