@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import './index.css';
 import {
-  BrowserRouter as Router,
+  HashRouter as Router,
   Switch,
   useLocation,
 } from 'react-router-dom';
