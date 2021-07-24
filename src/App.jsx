@@ -164,15 +164,25 @@ function App() {
           paddingTop: 8,
           fontSize: 12,
           opacity: '0.7',
+          display: 'flex',
         }}
       >
-        **Work-In-Progress** Visualization by
-        {' '}
-        <a href="https://taepras.com" style={{ color: 'white' }}>Thanawit Prasongpongchai</a>
-        , &shy;Data Source:
-        {' '}
-        <a href="https://docs.google.com/spreadsheets/d/1yyWXSTbq3CD_gNxks-krcSBzbszv3c_2Nq54lckoQ24/edit#gid=343539850" style={{ color: 'white' }}>กลุ่มก้าว Geek</a>
-
+        <div
+          style={{
+            position: 'relative',
+            flexGrow: 1,
+          }}
+        >
+          **Work-In-Progress** โครงสร้างงบประมาณปี 65
+        </div>
+        <div>
+          Visualization by
+          {' '}
+          <a href="https://taepras.com" style={{ color: 'white' }}>Thanawit Prasongpongchai</a>
+          , &shy;Data Source:
+          {' '}
+          <a href="https://docs.google.com/spreadsheets/d/1yyWXSTbq3CD_gNxks-krcSBzbszv3c_2Nq54lckoQ24/edit#gid=343539850" style={{ color: 'white' }}>กลุ่มก้าว Geek</a>
+        </div>
       </div>
     </FullView>
   );
