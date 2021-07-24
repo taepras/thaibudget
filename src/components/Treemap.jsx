@@ -6,11 +6,15 @@ import * as d3 from 'd3';
 import { nest } from 'd3-collection';
 import useDimensions from 'react-cool-dimensions';
 import { useHistory, useLocation } from 'react-router-dom';
-
-const TOP_BAR_HEIGHT = 60;
+import FullView from './FullView';
 
 function Treemap({
+  data = [],
+  isLoading = true,
   padding = 16,
+  filters = ['all'],
+  setFilters = () => { },
+  hierarchyBy = [],
 }) {
   const {
     observe, unobserve, width, height, entry,
@@ -24,46 +28,12 @@ function Treemap({
     },
   });
 
-  const location = useLocation();
   const history = useHistory();
 
   const svgRef = useRef(null);
-  const [hierarchyBy, setHierarchyBy] = useState([
-    'MINISTRY',
-    'BUDGETARY_UNIT',
-    'BUDGET_PLAN',
-    // 'OUPUT',
-    // 'PROJECT',
-    'OUTPUT_PROJECT',
-    'CATEGORY_LV1',
-    'CATEGORY_LV2',
-    'CATEGORY_LV3',
-    'CATEGORY_LV4',
-    'CATEGORY_LV5',
-    'CATEGORY_LV6',
-    'ITEM_DESCRIPTION',
-  ]);
-  const [filters, setFilters] = useState(['all']);
-  const [data, setData] = useState([]);
+
+  // const [data, setData] = useState([]);
   const [displayMode, setDisplayMode] = useState('treemap'); // or 'bar'
-
-  const preprocessedData = useMemo(() => data
-    .map((d) => ({
-      ...d,
-      AMOUNT: parseFloat(d.AMOUNT.replace(/,/g, '')),
-      OUTPUT_PROJECT: d.OUTPUT + d.PROJECT,
-    }))
-    .filter((d) => +d.FISCAL_YEAR === 2022),
-  [data]);
-
-  const navigateTo = (x, i) => {
-    console.log(x, i);
-    const temp = [...filters];
-    temp.splice(i + 1);
-    // setFilters(temp);
-    console.log('temp', temp);
-    history.push(`${process.env.PUBLIC_URL}/${temp.join('/')}`);
-  };
 
   const nestedData = useMemo(
     () => {
@@ -79,7 +49,7 @@ function Treemap({
 
       const nested = out
         .rollup((leaves) => d3.sum(leaves, (l) => l.AMOUNT))
-        .entries(preprocessedData);
+        .entries(data);
 
       let inData = {
         key: 'root',
@@ -95,14 +65,8 @@ function Treemap({
 
       return inData;
     },
-    [preprocessedData, filters, hierarchyBy],
+    [data, filters, hierarchyBy],
   );
-
-  useEffect(() => {
-    d3.csv(`${process.env.PUBLIC_URL}/data.csv`).then((d) => {
-      setData(d);
-    });
-  }, []);
 
   useEffect(() => {
     if (!svgRef.current) return;
@@ -117,12 +81,10 @@ function Treemap({
 
     const treemap = d3.treemap()
       .size([width - 2 * padding, svgHeight - 2 * padding])
-      .padding(3)
-      .round(true);
+      .padding(3);
+      // .round(true);
 
     const nodes = treemap(root);
-
-    console.log('nodes', nodes);
 
     const svg = d3.select(svgRef.current).select('g.chart');
 
@@ -132,10 +94,7 @@ function Treemap({
 
     const treemapPieceGroup = svg
       .selectAll('g.treemap-piece')
-      .data(root.leaves(), (d) => {
-        console.log(d);
-        return d?.data?.key;
-      });
+      .data(root.leaves(), (d) => d?.data?.key);
 
     const treemapPieceGroupEnter = treemapPieceGroup
       .enter()
@@ -173,7 +132,6 @@ function Treemap({
           const dy = d.y0;
           const sx = (width - 2 * padding) / (d.x1 - d.x0);
           const sy = (height - 2 * padding) / (d.y1 - d.y0);
-          console.log('ds', dx, dy, sx, sy);
 
           treemapPieceMerged
             .transition()
@@ -290,10 +248,6 @@ function Treemap({
       .remove();
   }, [svgRef, nestedData, filters, width, height, displayMode, padding, history]);
 
-  useEffect(() => {
-    setFilters(location.pathname.split('/').slice(2));
-  }, [location]);
-
   return (
     <div
       ref={observe}
@@ -308,38 +262,20 @@ function Treemap({
         overflowY: 'auto',
       }}
     >
-      <div style={{
-        height: TOP_BAR_HEIGHT,
-        display: 'flex',
-        alignItems: 'center',
-        paddingLeft: `${padding}px`,
-        overflowX: 'auto',
-      }}
-      >
-        {/* <button type="button" onClick={() => setDisplayMode('treemap')}>treemap</button>
-        <button type="button" onClick={() => setDisplayMode('bar')}>bar</button> */}
+      {/* {JSON.stringify(filters)} */}
+      {isLoading
+        && (
+        <FullView
+          style={{
+            backgroundColor: '#000c',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          Loading...
+        </FullView>
+        )}
 
-        {filters.map((x, i) => (
-          <>
-            <button
-              type="button"
-              onClick={() => navigateTo(x, i)}
-              style={{
-                marginRight: 4,
-                backgroundColor: 'transparent',
-                border: 'none',
-                color: 'white',
-              }}
-            >
-              <span style={{ opacity: '0.4' }}>{i > 0 && hierarchyBy[i - 1]}</span>
-              {i > 0 && <br />}
-              <span style={{ textDecoration: 'underline' }}>{x}</span>
-            </button>
-            <span style={{ color: 'white', marginRight: 4 }}>&gt;</span>
-          </>
-        ))}
-        {/* {JSON.stringify(filters)} */}
-      </div>
       <div
         style={{
           height: padding,
@@ -349,7 +285,7 @@ function Treemap({
           zIndex: 1,
         }}
       />
-      <svg ref={svgRef} width={width} height={height - TOP_BAR_HEIGHT}>
+      <svg ref={svgRef} width={width} height={height}>
         <g transform={`translate(${padding}, ${padding})`} className="chart" />
       </svg>
       <div
