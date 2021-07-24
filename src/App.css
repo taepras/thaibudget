@@ -1,11 +1,12 @@
 body {
   background-color: black;
+  color: white;
 }
-
+/* 
 .treemap-piece {
   transition: all 0.2s;
 }
 
 .treemap-piece:hover:not(.expanding):not(.not-current) {
   opacity: 0.9;
-}
+} */
