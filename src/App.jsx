@@ -1,46 +1,27 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback, useEffect, useMemo, useState,
+} from 'react';
 import * as d3 from 'd3';
 import styled from 'styled-components';
 import { useHistory, useLocation } from 'react-router-dom';
 import ReactTooltip from 'react-tooltip';
 import logo from './logo.svg';
 import './App.css';
-import Treemap from './components/Treemap';
+import DataView from './components/DataView';
 import FullView from './components/FullView';
 
-const TOP_BAR_HEIGHT = 60;
-
-const hierarchyBy = [
-  'MINISTRY',
-  'BUDGETARY_UNIT',
-  'BUDGET_PLAN',
-  // 'OUPUT',
-  // 'PROJECT',
-  'OUTPUT_PROJECT',
-  // 'CATEGORY_LV1',
-  'ITEM',
-  // 'CATEGORY_LV2',
-  // 'CATEGORY_LV3',
-  // 'CATEGORY_LV4',
-  // 'CATEGORY_LV5',
-  // 'CATEGORY_LV6',
-  // 'ITEM_DESCRIPTION',
-];
-
-const THAI_NAME = {
-  MINISTRY: 'กระทรวงหรือเทียบเท่า',
-  BUDGETARY_UNIT: 'หน่วยรับงบฯ',
-  BUDGET_PLAN: 'แผนงาน',
-  OUTPUT_PROJECT: 'ผลผลิต/โครงการ',
-  ITEM: 'รายการ',
-};
+const HiddenMobile = styled.div`
+  @media (max-width: 480px){
+    display: none !important;
+  }
+`;
 
 function App() {
   const [data, setData] = useState([]);
   const [isLoading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const [isCompareView, setCompareView] = useState(false);
   const [filters, setFilters] = useState(['all']);
+  const [sumWindows, setSumWindows] = useState([0, 0]);
 
   useEffect(() => {
     d3.csv(`${process.env.PUBLIC_URL}/data.csv`).then((d) => {
@@ -49,28 +30,18 @@ function App() {
     });
   }, []);
 
-  const filterDataByQuery = (datum, query) => {
-    const searchLevels = [
-      'MINISTRY',
-      'BUDGETARY_UNIT',
-      // 'BUDGET_PLAN',
-      // 'OUPUT',
-      // 'PROJECT',
-      // 'OUTPUT_PROJECT',
-      // 'CATEGORY_LV1',
-      // 'CATEGORY_LV2',
-      // 'CATEGORY_LV3',
-      // 'CATEGORY_LV4',
-      // 'CATEGORY_LV5',
-      // 'CATEGORY_LV6',
-      // 'ITEM_DESCRIPTION',
-    ];
-    // eslint-disable-next-line guard-for-in, no-restricted-syntax
-    for (const i in searchLevels) {
-      if (datum[searchLevels[i]].includes(query)) { return true; }
-    }
-    return false;
+  const setSumWindowsIdx = (i, value) => {
+    const temp = [...sumWindows];
+    temp[i] = value;
+    setSumWindows(temp);
   };
+
+  const maxSumValue = useMemo(() => d3.max(sumWindows), [sumWindows]);
+
+  const isMultipleMaxSum = useMemo(() => {
+    const mx = d3.max(sumWindows);
+    return sumWindows.filter((x) => mx === x).length > 1;
+  }, [sumWindows]);
 
   const preprocessedData = useMemo(() => data
     .map((d) => ({
@@ -89,9 +60,8 @@ function App() {
         .filter((x) => x)
         .join(' - '),
     }))
-    .filter((d) => +d.FISCAL_YEAR === 2022)
-    .filter((d) => filterDataByQuery(d, searchQuery)),
-  [data, searchQuery]);
+    .filter((d) => +d.FISCAL_YEAR === 2022),
+  [data]);
 
   const location = useLocation();
   const history = useHistory();
@@ -113,107 +83,87 @@ function App() {
 
   return (
     <FullView>
-      {/*
-      <button type="button" onClick={() => setCompareView(!isCompareView)}>
-      toggle compare view
-      </button>
-       */}
-      <div style={{
-        height: TOP_BAR_HEIGHT,
-        display: 'flex',
-        alignItems: 'center',
-        paddingLeft: 16,
-        paddingRight: 16,
-        overflowX: 'auto',
-      }}
-      >
-        <div style={{
-          flexGrow: 1,
-          display: 'flex',
-          alignItems: 'center',
-        }}
-        >
-          {/* <button type="button" onClick={() => setDisplayMode('treemap')}>treemap</button>
-        <button type="button" onClick={() => setDisplayMode('bar')}>bar</button> */}
-
-          {filters.map((x, i) => (
-            <>
-              <button
-                type="button"
-                onClick={() => navigateTo(x, i)}
-                style={{
-                  marginRight: 4,
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  color: 'white',
-                }}
-              >
-                <small style={{ opacity: '0.4' }}>{i > 0 && THAI_NAME[hierarchyBy[i - 1]]}</small>
-                {i > 0 && <br />}
-                <span style={{ textDecoration: i < filters.length - 1 ? 'underline' : 'none' }}>
-                  {i === 0
-                    ? (
-                      searchQuery === ''
-                        ? 'หน่วยงานทั้งหมด'
-                        : `หน่วยงานทั้งหมดที่ชื่อมีคำว่า "${searchQuery}"`
-                    )
-                    : x}
-                </span>
-              </button>
-              {i === filters.length - 1
-                && (
-                <>
-                  <small style={{ color: 'white', marginRight: 8, opacity: '0.4' }}>
-                    :
-                  </small>
-                  <small style={{ color: 'white', marginRight: 4, opacity: '0.4' }}>
-                    แบ่งตาม
-                    {' '}
-                    {THAI_NAME[hierarchyBy[i]]}
-                  </small>
-                </>
-                )}
-              {i < filters.length - 1
-                && <span style={{ color: 'white', marginRight: 4 }}>&gt;</span>}
-            </>
-          ))}
-          {/* {JSON.stringify(filters)} */}
-        </div>
-        <div>
-          <label>Filter: </label>
-          <input value={searchQuery} onInput={(e) => setSearchQuery(e.target.value)} placeholder="หน่วยรับงบหรือกระทรวง" />
-        </div>
-      </div>
       <div style={{ display: 'flex', flexDirection: 'row', flexGrow: 1 }}>
         <div style={{
           position: 'relative',
           flexGrow: 1,
         }}
         >
-          <Treemap
+          <DataView
             data={preprocessedData}
             isLoading={isLoading}
-            filters={filters}
-            hierarchyBy={hierarchyBy}
-            setFilters={setFilters}
+            fullValue={maxSumValue}
+            setCurrentSum={(s) => {
+              console.log('setCurrentSum 0', s);
+              setSumWindowsIdx(0, s);
+            }}
+            isMultipleMaxSum={isMultipleMaxSum}
+            sumWindows={sumWindows}
+            index={0}
           />
         </div>
-        {isCompareView
-          && (
+        {isCompareView && (
           <div style={{
             position: 'relative',
             flexGrow: 1,
           }}
           >
-            <Treemap
+            <DataView
               data={preprocessedData}
               isLoading={isLoading}
-              filters={filters}
-              hierarchyBy={hierarchyBy}
-              setFilters={setFilters}
+              fullValue={maxSumValue}
+              setCurrentSum={(s) => {
+                console.log('setCurrentSum 1', s);
+                setSumWindowsIdx(1, s);
+              }}
+              isMultipleMaxSum={isMultipleMaxSum}
+              sumWindows={sumWindows}
+              index={1}
             />
           </div>
-          )}
+        )}
+        <HiddenMobile style={{
+          position: 'relative',
+          width: 80,
+          padding: 16,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              if (isCompareView) { setSumWindowsIdx(1, 0); }
+              setCompareView(!isCompareView);
+            }}
+            style={{
+              paddingTop: 16,
+              paddingBottom: 16,
+              backgroundColor: '#181818',
+              border: 'none',
+              color: '#888',
+              borderRadius: 8,
+            }}
+          >
+            <span style={{
+              display: 'inline-flex',
+              fontSize: 24,
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              backgroundColor: '#333',
+              color: 'white',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 8,
+            }}
+            >
+              {!isCompareView ? '+' : '×'}
+            </span>
+            <br />
+            {!isCompareView ? 'Open\nCompare\nView' : 'Close\nCompare\nView'}
+          </button>
+        </HiddenMobile>
       </div>
       <div
         style={{

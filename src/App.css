@@ -10,3 +10,11 @@ body {
 .treemap-piece:hover rect {
   stroke: #fff;
 }
+
+.treemap-piece:focus {
+  outline: none;
+}
+
+.treemap-piece.selected rect {
+  stroke: #fff;
+}
