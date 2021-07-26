@@ -10,10 +10,81 @@ import './App.css';
 import DataView from './components/DataView';
 import FullView from './components/FullView';
 
-const HiddenMobile = styled.div`
-  @media (max-width: 480px){
-    display: none !important;
+const PageContainer = styled.div`
+ display: flex;
+ flex-direction: row;
+ flex-grow: 1;
+
+  @media screen and (orientation:portrait) {
+    flex-direction: column;
   }
+`;
+
+const ResponsiveImage = styled.img`
+  width: 100%;
+`;
+
+const CreditLink = styled.a`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: white;
+  text-align: center;
+
+  &:hover {
+    opacity: 0.7;
+  }
+
+  small {
+    margin-bottom: 4px;
+    opacity: 0.4;
+  }
+
+  ${ResponsiveImage} {
+    max-width: 64px;
+  }
+`;
+
+const Sidebar = styled.div`
+  position: relative;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  
+  @media screen and (orientation:landscape) {
+    width: 80px;
+    &>*:not(:last-child) {
+      margin-bottom: 16px;
+    }
+  }
+
+  @media screen and (orientation:portrait) {
+    height: 64px;
+    flex-direction: row;
+    /* display: none !important; */
+
+    &>*:not(:last-child) {
+      margin-right: 16px;
+    }
+
+    ${CreditLink} ${ResponsiveImage} {
+      max-width: 48px;
+    }
+  }
+`;
+
+const ActionButton = styled.button`
+  padding: 8px;
+  background-color: #181818;
+  border: none;
+  color: #888;
+  border-radius: 8px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 `;
 
 function App() {
@@ -83,7 +154,7 @@ function App() {
 
   return (
     <FullView>
-      <div style={{ display: 'flex', flexDirection: 'row', flexGrow: 1 }}>
+      <PageContainer>
         <div style={{
           position: 'relative',
           flexGrow: 1,
@@ -122,27 +193,12 @@ function App() {
             />
           </div>
         )}
-        <HiddenMobile style={{
-          position: 'relative',
-          width: 80,
-          padding: 16,
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-        >
-          <button
+        <Sidebar>
+          <ActionButton
             type="button"
             onClick={() => {
               if (isCompareView) { setSumWindowsIdx(1, 0); }
               setCompareView(!isCompareView);
-            }}
-            style={{
-              paddingTop: 16,
-              paddingBottom: 16,
-              backgroundColor: '#181818',
-              border: 'none',
-              color: '#888',
-              borderRadius: 8,
             }}
           >
             <span style={{
@@ -160,12 +216,26 @@ function App() {
             >
               {!isCompareView ? '+' : '×'}
             </span>
-            <br />
             {!isCompareView ? 'Open\nCompare\nView' : 'Close\nCompare\nView'}
-          </button>
-        </HiddenMobile>
-      </div>
-      <div
+          </ActionButton>
+          <div style={{ flexGrow: 1 }} />
+
+          <CreditLink target="_blank" href="https://taepras.com">
+            <small>Visualized by</small>
+            <ResponsiveImage src={`${process.env.PUBLIC_URL}/tp_logo_dark.svg`} alt="kaogeek logo" title="Thanawit Prasongpongchai" />
+          </CreditLink>
+          <CreditLink target="_blank" href="https://docs.google.com/spreadsheets/d/1yyWXSTbq3CD_gNxks-krcSBzbszv3c_2Nq54lckoQ24/edit#gid=343539850">
+            <small>Data Source</small>
+            <ResponsiveImage src={`${process.env.PUBLIC_URL}/kaogeek_logo_dark.png`} alt="kaogeek logo" title="กลุ่มก้าว Geek" />
+          </CreditLink>
+          <div style={{ opacity: 0.6, textAlign: 'center' }}>
+            <small style={{ display: 'inline-block', lineHeight: 1.2 }}>
+              ** This is a work-in-progress.
+            </small>
+          </div>
+        </Sidebar>
+      </PageContainer>
+      {/* <div
         style={{
           padding: 16,
           paddingTop: 8,
@@ -174,26 +244,8 @@ function App() {
           display: 'flex',
         }}
       >
-        <div
-          style={{
-            position: 'relative',
-            flexGrow: 1,
-          }}
-        >
-          **Work-In-Progress**
-          <br />
-          โครงสร้างงบประมาณปี 65
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          Visualization by
-          {' '}
-          <a href="https://taepras.com" style={{ color: 'white' }}>Thanawit Prasongpongchai</a>
-          <br />
-          Data Source:
-          {' '}
-          <a href="https://docs.google.com/spreadsheets/d/1yyWXSTbq3CD_gNxks-krcSBzbszv3c_2Nq54lckoQ24/edit#gid=343539850" style={{ color: 'white' }}>กลุ่มก้าว Geek</a>
-        </div>
-      </div>
+
+      </div> */}
       <ReactTooltip multiline />
     </FullView>
   );
