@@ -182,6 +182,9 @@ function Treemap({
     treemapPieceMerged
       .on('click', null)
       .on('click', (e, d, el) => {
+        const newFilters = [...filters, d?.data?.key];
+        if (newFilters.length > hierarchyBy.length) return;
+
         // const treeFullArea = (width - 2 * padding) * (svgHeight - 2 * padding);
         // const treeAspect = (width - 2 * padding) / (svgHeight - 2 * padding);
         // const treeCurrentArea = (sum / (fullValue || 1)) * treeFullArea;
@@ -227,11 +230,8 @@ function Treemap({
           .attr('height', (p) => Math.max(sy * (p.y1 - p.y0), 0));
 
         setTimeout(() => {
-          const newFilters = [...filters, d?.data?.key];
-          if (newFilters.length <= hierarchyBy.length) {
-            setFilters(newFilters);
-            // history.push(`/${newFilters.join('/')}`);
-          }
+          setFilters(newFilters);
+          // history.push(`/${newFilters.join('/')}`);
         }, 300);
       })
       .transition()
