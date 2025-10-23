@@ -95,7 +95,7 @@ function App() {
   const [sumWindows, setSumWindows] = useState([0, 0]);
 
   useEffect(() => {
-    d3.csv(`${process.env.PUBLIC_URL}/data.csv`).then((d) => {
+    d3.csv(`${process.env.PUBLIC_URL}/data-69.csv`).then((d) => {
       setLoading(false);
       setData(d);
     });
@@ -130,8 +130,7 @@ function App() {
       ]
         .filter((x) => x)
         .join(' - '),
-    }))
-    .filter((d) => +d.FISCAL_YEAR === 2022),
+    })),
   [data]);
 
   const location = useLocation();
