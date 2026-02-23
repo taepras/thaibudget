@@ -6,9 +6,52 @@ import styled from 'styled-components';
 import { useHistory, useLocation } from 'react-router-dom';
 import ReactTooltip from 'react-tooltip';
 import Treemap from './Treemap';
+import YearComparison from './YearComparison';
+import PercentageChangeList from './PercentageChangeList';
 import FullView from './FullView';
 
 const TOP_BAR_HEIGHT = 60;
+
+const RightSidebar = styled.div`
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+
+  @media screen and (orientation: portrait) {
+    display: none;
+  }
+`;
+
+const ResponsiveImage = styled.img`
+  width: 100%;
+`;
+
+const CreditLink = styled.a`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: white;
+  text-align: center;
+  margin-left: 16px;
+  height: 32px;
+  opacity: 0.4;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  small {
+    margin-bottom: 4px;
+    opacity: 0.4;
+  }
+
+  ${ResponsiveImage} {
+    max-width: 64px;
+  }
+`;
 
 const hierarchyBy = [
   'MINISTRY',
@@ -166,6 +209,14 @@ function DataView({
             placeholder="หน่วยรับงบหรือกระทรวง"
           />
         </div>
+        <CreditLink target="_blank" href="https://taepras.com">
+          {/* <small>Visualized by</small> */}
+          <ResponsiveImage
+            src={`${process.env.PUBLIC_URL}/tp_logo_dark.svg`}
+            alt="Thanawit Prasongpongchai taepras.com"
+            title="Thanawit Prasongpongchai"
+          />
+        </CreditLink>
       </div>
       <div style={{ display: 'flex', flexDirection: 'row', flexGrow: 1 }}>
         <div style={{
@@ -189,6 +240,10 @@ function DataView({
             sumWindows={sumWindows}
           />
         </div>
+        <RightSidebar>
+          <YearComparison data={filteredData} filters={filters} hierarchyBy={hierarchyBy} />
+          <PercentageChangeList data={filteredData} filters={filters} hierarchyBy={hierarchyBy} />
+        </RightSidebar>
       </div>
     </FullView>
   );

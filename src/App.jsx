@@ -201,7 +201,7 @@ function App() {
             />
           </div>
         )}
-        <Sidebar>
+        {/* <Sidebar>
           <ActionButton
             type="button"
             onClick={() => {
@@ -230,18 +230,31 @@ function App() {
 
           <CreditLink target="_blank" href="https://taepras.com">
             <small>Visualized by</small>
-            <ResponsiveImage src={`${process.env.PUBLIC_URL}/tp_logo_dark.svg`} alt="kaogeek logo" title="Thanawit Prasongpongchai" />
+            <ResponsiveImage
+              src={`${process.env.PUBLIC_URL}/tp_logo_dark.svg`}
+              alt="Thanawit Prasongpongchai taepras.com"
+              title="Thanawit Prasongpongchai"
+            />
           </CreditLink>
           <CreditLink target="_blank" href="https://docs.google.com/spreadsheets/d/1yyWXSTbq3CD_gNxks-krcSBzbszv3c_2Nq54lckoQ24/edit#gid=343539850">
             <small>Data Source</small>
-            <ResponsiveImage src={`${process.env.PUBLIC_URL}/kaogeek_logo_dark.png`} alt="kaogeek logo" title="กลุ่มก้าว Geek" />
+            <ResponsiveImage
+              src={`${process.env.PUBLIC_URL}/kaogeek_logo_dark.png`}
+              alt="kaogeek logo"
+              title="กลุ่มก้าว Geek"
+            />
+            <ResponsiveImage
+              src={`${process.env.PUBLIC_URL}/wevis_logo_dark.png`}
+              alt="WeVis logo"
+              title="WeVis"
+            />
           </CreditLink>
           <div style={{ opacity: 0.6, textAlign: 'center' }}>
             <small style={{ display: 'inline-block', lineHeight: 1.2 }}>
               ** This is a work-in-progress.
             </small>
           </div>
-        </Sidebar>
+        </Sidebar> */}
       </PageContainer>
       {/* <div
         style={{

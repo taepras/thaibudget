@@ -1,5 +1,5 @@
 import React, {
-  useEffect, useMemo, useRef, useState,
+  useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
 
 import * as d3 from 'd3';
@@ -55,6 +55,16 @@ function Treemap({
     .domain([-0.5, 0, 0.5]) // -50% to +50% growth
     .range(['#cf0000ff', '#333333', '#00ac00ff'])
     .clamp(true), []);
+
+  const getNodeColor = useCallback((node) => {
+    // New items (only in 2026, no amount in 2025) get the greenest color
+    const lastYear = node?.AMOUNT_LASTYEAR;
+    if (lastYear == null || lastYear === 0) {
+      return '#00ff00ff'; // Brightest green for new items
+    }
+    // Existing items use the growth-based color scale
+    return node?.GROWTH != null ? colorScale(node.GROWTH) : '#666666';
+  }, [colorScale]);
 
   const nestedData = useMemo(() => {
     console.log('filters', filters);
@@ -186,7 +196,7 @@ function Treemap({
       .append('rect')
       .attr('class', 'box')
       .attr('rx', 3)
-      .style('fill', (d) => (d?.GROWTH != null ? colorScale(d.GROWTH) : '#666666'))
+      .style('fill', (d) => getNodeColor(d))
       .attr('width', (d) => (d.x1 - d.x0) || 0)
       .attr('height', (d) => (d.y1 - d.y0) || 0);
     // .attr('x', d => d.x0)
@@ -296,7 +306,7 @@ function Treemap({
       .transition()
       .duration(300)
       .attr('rx', 3)
-      .style('fill', (d) => (d?.GROWTH != null ? colorScale(d.GROWTH) : '#666666'))
+      .style('fill', (d) => getNodeColor(d))
       .attr('stroke', 'black')
       .attr('stroke-width', gutter)
       .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
@@ -332,7 +342,7 @@ function Treemap({
       .attr('opacity', 1)
       .text((d) => {
         const itemGrowth = d?.GROWTH;
-        return itemGrowth != null ? `เติบโต ${(itemGrowth * 100).toFixed(1)}%` : '';
+        return itemGrowth != null ? `${itemGrowth >= 0 ? 'เพิ่มขึ้น' : 'ลดลง'} ${(itemGrowth * 100).toFixed(1)}%` : '';
       })
       .attr('fill', (d) => (d?.GROWTH > 0 ? '#4f4' : d?.GROWTH < 0 ? '#f44' : 'white'));
 
@@ -367,6 +377,7 @@ function Treemap({
     isMultipleMaxSum,
     sumWindows,
     colorScale,
+    getNodeColor,
   ]);
 
   return (
