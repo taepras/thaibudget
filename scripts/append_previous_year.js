@@ -1,6 +1,25 @@
 const fs = require('fs');
 const path = require('path');
 const csv = require('csv-parser');
+
+/**
+ * Outer join script for merging 2025 (68) and 2026 (69) budget data
+ *
+ * Note: "อปท" (acronym) and "องค์กรปกครองส่วนท้องถิ่น" (full name for local administrative organization)
+ * refer to the same entity and are normalized to the same canonical value during the merge.
+ */
+
+// Normalize ministry names to canonical form
+function normalizeMinistry(ministry) {
+    if (ministry === 'อปท' || ministry === 'องค์กรปกครองส่วนท้องถิ่น') {
+        return 'องค์กรปกครองส่วนท้องถิ่น';
+    }
+    if (ministry === 'ส่วนราชการไม่สังกัดสำนักนายกรัฐมนตรีฯ' || ministry === 'ส่วนราชการไม่สังกัดสำนักนายกรัฐมนตรี กระทรวง หรือทบวง และหน่วยงานภายใต้การควบคุมดูแลของนายกรัฐมนตรี') {
+        return 'ส่วนราชการไม่สังกัดสำนักนายกรัฐมนตรี กระทรวง หรือทบวง และหน่วยงานภายใต้การควบคุมดูแลของนายกรัฐมนตรี';
+    }
+    return ministry;
+}
+
 // Create maps to store data from each budget year
 const data68Map = new Map();
 const data69Map = new Map();
@@ -10,7 +29,7 @@ let headers69 = [];
 // Helper function to create a unique key from a row
 function createKey(row) {
     return [
-        row.MINISTRY,
+        normalizeMinistry(row.MINISTRY),
         row.BUDGETARY_UNIT,
         row.BUDGET_PLAN,
         row.CROSS_FUNC,
@@ -39,9 +58,13 @@ function readCsvIntoMap(filePath, targetMap, setHeaders, fiscalYearFilter) {
                 if (fiscalYearFilter && row.FISCAL_YEAR !== fiscalYearFilter) {
                     return;
                 }
+                // Normalize ministry name in the row
+                // eslint-disable-next-line no-param-reassign
+                row.MINISTRY = normalizeMinistry(row.MINISTRY);
+                
                 const key = createKey(row);
                 const amount = row.AMOUNT ? parseFloat(row.AMOUNT.replace(/,/g, '')) : 0;
-                
+
                 if (targetMap.has(key)) {
                     // Duplicate key: sum the amounts
                     const existing = targetMap.get(key);
