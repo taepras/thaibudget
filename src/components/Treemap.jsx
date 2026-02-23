@@ -94,7 +94,10 @@ function Treemap({
   const [growth, setGrowth] = useState(null);
 
   useEffect(() => {
-    const s = nestedData.values.reduce((a, b) => a + (b.value?.value || 0), 0);
+    const s = nestedData.values.reduce((a, b) => {
+      const val = b.value?.value !== undefined ? b.value.value : (b.value || 0);
+      return a + val;
+    }, 0);
     const lastYearSum = nestedData.values.reduce((a, b) => a + (b.value?.AMOUNT_LASTYEAR || 0), 0);
     const g = lastYearSum > 0 ? (s / lastYearSum) - 1 : null;
     console.log('sum', s, 'lastYear', lastYearSum, 'growth', g);
@@ -112,8 +115,12 @@ function Treemap({
     console.log(svgHeight);
 
     const root = d3.hierarchy(nestedData, (d) => d?.values)
-      .sum((d) => d?.value?.value || d?.value || 0)
-      .sort((a, b) => (b?.value || 0) - (a?.value || 0))
+      .sum((d) => (d?.value?.value !== undefined ? d.value.value : (d?.value || 0)))
+      .sort((a, b) => {
+        const valA = a?.value?.value !== undefined ? a.value.value : (a?.value || 0);
+        const valB = b?.value?.value !== undefined ? b.value.value : (b?.value || 0);
+        return valB - valA;
+      })
       // eslint-disable-next-line no-param-reassign
       .each((d) => {
         if (d.data.value) {
@@ -124,7 +131,10 @@ function Treemap({
         }
       });
 
-    const newSum = nestedData.values.reduce((a, b) => a + (b.value?.value || b.value || 0), 0);
+    const newSum = nestedData.values.reduce((a, b) => {
+      const val = b.value?.value !== undefined ? b.value.value : (b.value || 0);
+      return a + val;
+    }, 0);
 
     const newSumWin = [...sumWindows];
     const idx0 = newSumWin.indexOf(sum);
@@ -164,7 +174,7 @@ function Treemap({
       .style('mask', (d) => `url(#mask-${d?.data?.key.replaceAll(/[ ()]/g, '')}-${index})`)
       .attr('data-tip', (d) => {
         const itemGrowth = d?.GROWTH;
-        const lastYear = d?.data?.AMOUNT_LASTYEAR;
+        const lastYear = d?.AMOUNT_LASTYEAR;
         const growthText = itemGrowth != null ? `${(itemGrowth * 100).toFixed(1)}%` : 'N/A';
         const lastYearText = lastYear != null ? lastYear.toLocaleString() : 'N/A';
         return `${d?.data?.key}<br>${d?.value?.toLocaleString?.()} บาท<br>ปีที่แล้ว: ${lastYearText} บาท<br>เติบโต: ${growthText}`;
@@ -276,7 +286,7 @@ function Treemap({
       .attr('opacity', 1)
       .attr('data-tip', (d) => {
         const nodeGrowth = d?.GROWTH;
-        const lastYear = d?.data?.AMOUNT_LASTYEAR;
+        const lastYear = d?.AMOUNT_LASTYEAR;
         const growthText = nodeGrowth != null ? `${(nodeGrowth * 100).toFixed(1)}%` : 'N/A';
         const lastYearText = lastYear != null ? lastYear.toLocaleString() : 'N/A';
         return `${d?.data?.key}<br>${d?.value?.toLocaleString?.()} บาท<br>ปีที่แล้ว: ${lastYearText} บาท<br>เติบโต: ${growthText}`;

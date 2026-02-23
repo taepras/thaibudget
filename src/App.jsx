@@ -95,9 +95,10 @@ function App() {
   const [sumWindows, setSumWindows] = useState([0, 0]);
 
   useEffect(() => {
-    d3.csv(`${process.env.PUBLIC_URL}/data-69-with-68.csv`).then((d) => {
-      setLoading(false);
+    // d3.csv(`${process.env.PUBLIC_URL}/data-69-with-68.csv`).then((d) => {
+    d3.csv(`${process.env.PUBLIC_URL}/data-69.csv`).then((d) => {
       setData(d);
+      setLoading(false);
     });
   }, []);
 
@@ -116,8 +117,9 @@ function App() {
 
   const preprocessedData = useMemo(() => data
     .map((d) => {
-      const amountThisYear = parseFloat(d.AMOUNT.replace(/,/g, ''));
-      const amountLastYear = parseFloat(d.AMOUNT_LASTYEAR.replace(/,/g, ''));
+      const amountThisYear = parseFloat(d.AMOUNT.replace(/,/g, '')) || 0;
+      // const amountLastYear = parseFloat(d.AMOUNT_LASTYEAR.replace(/,/g, '')) || 0;
+      const amountLastYear = 0;
       return {
         ...d,
         AMOUNT: amountThisYear,
@@ -137,7 +139,8 @@ function App() {
           .filter((x) => x)
           .join(' - '),
       };
-    }), [data]);
+    })
+    .filter((x) => x.FISCAL_YEAR === '2026'), [data]);
 
   const location = useLocation();
   const history = useHistory();
