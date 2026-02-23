@@ -97,6 +97,7 @@ function App() {
   useEffect(() => {
     d3.csv(`${process.env.PUBLIC_URL}/data-69-with-68.csv`).then((d) => {
     // d3.csv(`${process.env.PUBLIC_URL}/data-69.csv`).then((d) => {
+    // d3.csv(`${process.env.PUBLIC_URL}/data-68.csv`).then((d) => {
       setData(d);
       setLoading(false);
     });
@@ -139,8 +140,7 @@ function App() {
           .filter((x) => x)
           .join(' - '),
       };
-    })
-    .filter((x) => x.FISCAL_YEAR === '2026'), [data]);
+    }), [data]);
 
   const location = useLocation();
   const history = useHistory();

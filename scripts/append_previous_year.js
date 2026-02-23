@@ -40,8 +40,15 @@ function readCsvIntoMap(filePath, targetMap, setHeaders, fiscalYearFilter) {
                     return;
                 }
                 const key = createKey(row);
-                const amount = row.AMOUNT ? row.AMOUNT.replace(/,/g, '') : '';
-                targetMap.set(key, { row, amount });
+                const amount = row.AMOUNT ? parseFloat(row.AMOUNT.replace(/,/g, '')) : 0;
+                
+                if (targetMap.has(key)) {
+                    // Duplicate key: sum the amounts
+                    const existing = targetMap.get(key);
+                    existing.amount += amount;
+                } else {
+                    targetMap.set(key, { row, amount });
+                }
             })
             .on('end', resolve)
             .on('error', reject);
@@ -64,11 +71,20 @@ function buildRowValues(row, headers) {
     return headers.map((h) => (row && row[h] !== undefined ? row[h] : ''));
 }
 
+function escapeCsvValue(value) {
+    if (value === null || value === undefined) return '';
+    const str = value.toString();
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+}
+
 function writeOuterJoin() {
     const outputFile = path.join(__dirname, '../public/data-69-with-68.csv');
     const writeStream = fs.createWriteStream(outputFile);
     const headers = buildHeaders();
-    writeStream.write(`${headers.join(',')}\n`);
+    writeStream.write(`${headers.map(escapeCsvValue).join(',')}\n`);
 
     const allKeys = new Set([...data69Map.keys(), ...data68Map.keys()]);
     allKeys.forEach((key) => {
@@ -90,7 +106,7 @@ function writeOuterJoin() {
             values[rowSourceIndex] = row69 && row68 ? 'both' : (row69 ? '69-only' : '68-only');
         }
 
-        writeStream.write(`${values.join(',')}\n`);
+        writeStream.write(`${values.map(escapeCsvValue).join(',')}\n`);
     });
 
     writeStream.end(() => {
