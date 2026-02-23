@@ -95,7 +95,7 @@ function App() {
   const [sumWindows, setSumWindows] = useState([0, 0]);
 
   useEffect(() => {
-    d3.csv(`${process.env.PUBLIC_URL}/data-69.csv`).then((d) => {
+    d3.csv(`${process.env.PUBLIC_URL}/data-69-with-68.csv`).then((d) => {
       setLoading(false);
       setData(d);
     });
@@ -115,23 +115,29 @@ function App() {
   }, [sumWindows]);
 
   const preprocessedData = useMemo(() => data
-    .map((d) => ({
-      ...d,
-      AMOUNT: parseFloat(d.AMOUNT.replace(/,/g, '')),
-      OUTPUT_PROJECT: (d.OUTPUT || d.PROJECT) ? (d.OUTPUT + d.PROJECT) : 'ไม่ระบุโครงการ/ผลผลิต',
-      MINISTRY: d.MINISTRY.replace(/\([0-9]+\)$/, '').trim(),
-      ITEM: [
-        d.ITEM_DESCRIPTION,
-        d.CATEGORY_LV2,
-        d.CATEGORY_LV3,
-        d.CATEGORY_LV4,
-        d.CATEGORY_LV5,
-        d.CATEGORY_LV6,
-      ]
-        .filter((x) => x)
-        .join(' - '),
-    })),
-  [data]);
+    .map((d) => {
+      const amountThisYear = parseFloat(d.AMOUNT.replace(/,/g, ''));
+      const amountLastYear = parseFloat(d.AMOUNT_LASTYEAR.replace(/,/g, ''));
+      return {
+        ...d,
+        AMOUNT: amountThisYear,
+        AMOUNT_LASTYEAR: amountLastYear,
+        DIFF: amountThisYear - amountLastYear,
+        GROWTH: amountLastYear > 0 ? (amountThisYear - amountLastYear) / amountLastYear : Infinity,
+        OUTPUT_PROJECT: (d.OUTPUT || d.PROJECT) ? (d.OUTPUT + d.PROJECT) : 'ไม่ระบุโครงการ/ผลผลิต',
+        MINISTRY: d.MINISTRY.replace(/\([0-9]+\)$/, '').trim(),
+        ITEM: [
+          d.ITEM_DESCRIPTION,
+          d.CATEGORY_LV2,
+          d.CATEGORY_LV3,
+          d.CATEGORY_LV4,
+          d.CATEGORY_LV5,
+          d.CATEGORY_LV6,
+        ]
+          .filter((x) => x)
+          .join(' - '),
+      };
+    }), [data]);
 
   const location = useLocation();
   const history = useHistory();

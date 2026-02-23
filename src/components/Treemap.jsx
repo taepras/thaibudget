@@ -51,6 +51,11 @@ function Treemap({
   const [sum, setSum] = useState(-1); // or 'bar'
   const [displayMode, setDisplayMode] = useState('treemap'); // or 'bar'
 
+  const colorScale = useMemo(() => d3.scaleLinear()
+    .domain([-0.5, 0, 0.5]) // -50% to +50% growth
+    .range(['#cf0000ff', '#333333', '#00ac00ff'])
+    .clamp(true), []);
+
   const nestedData = useMemo(() => {
     console.log('filters', filters);
 
@@ -63,9 +68,14 @@ function Treemap({
     }
 
     const nested = out
-      .rollup((leaves) => d3.sum(leaves, (l) => l.AMOUNT))
+      .rollup((leaves) => ({
+        value: d3.sum(leaves, (l) => l.AMOUNT),
+        AMOUNT_LASTYEAR: d3.sum(leaves, (l) => l.AMOUNT_LASTYEAR),
+        GROWTH: d3.sum(leaves, (l) => l.AMOUNT_LASTYEAR) > 0
+          ? (d3.sum(leaves, (l) => l.AMOUNT) / d3.sum(leaves, (l) => l.AMOUNT_LASTYEAR)) - 1
+          : null,
+      }))
       .entries(data);
-
     let inData = {
       key: 'root',
       values: [{ key: 'all', values: nested }],
@@ -81,11 +91,16 @@ function Treemap({
     return inData;
   }, [data, filters, hierarchyBy]);
 
+  const [growth, setGrowth] = useState(null);
+
   useEffect(() => {
-    const s = nestedData.values.reduce((a, b) => a + b.value, 0);
-    console.log('sum', s);
+    const s = nestedData.values.reduce((a, b) => a + (b.value?.value || 0), 0);
+    const lastYearSum = nestedData.values.reduce((a, b) => a + (b.value?.AMOUNT_LASTYEAR || 0), 0);
+    const g = lastYearSum > 0 ? (s / lastYearSum) - 1 : null;
+    console.log('sum', s, 'lastYear', lastYearSum, 'growth', g);
     if (sum !== s) { setCurrentSum(s); }
     setSum(s);
+    setGrowth(g);
   }, [nestedData, setCurrentSum, sum]);
 
   useEffect(() => {
@@ -97,10 +112,19 @@ function Treemap({
     console.log(svgHeight);
 
     const root = d3.hierarchy(nestedData, (d) => d?.values)
-      .sum((d) => d?.value)
-      .sort((a, b) => b?.value - a?.value);
+      .sum((d) => d?.value?.value || d?.value || 0)
+      .sort((a, b) => (b?.value || 0) - (a?.value || 0))
+      // eslint-disable-next-line no-param-reassign
+      .each((d) => {
+        if (d.data.value) {
+          // eslint-disable-next-line no-param-reassign
+          d.AMOUNT_LASTYEAR = d.data.value.AMOUNT_LASTYEAR;
+          // eslint-disable-next-line no-param-reassign
+          d.GROWTH = d.data.value.GROWTH;
+        }
+      });
 
-    const newSum = nestedData.values.reduce((a, b) => a + b.value, 0);
+    const newSum = nestedData.values.reduce((a, b) => a + (b.value?.value || b.value || 0), 0);
 
     const newSumWin = [...sumWindows];
     const idx0 = newSumWin.indexOf(sum);
@@ -118,7 +142,7 @@ function Treemap({
     const treemap = d3.treemap()
       .size([treeW, treeH])
       .padding(0);
-      // .round(true);
+    // .round(true);
 
     const nodes = treemap(root);
 
@@ -138,7 +162,13 @@ function Treemap({
       .attr('class', 'treemap-piece')
       .attr('id', (d) => `${d?.data?.key.replaceAll(/[ ()]/g, '')}-${index}`)
       .style('mask', (d) => `url(#mask-${d?.data?.key.replaceAll(/[ ()]/g, '')}-${index})`)
-      .attr('data-tip', (d) => `${d?.data?.key}<br>${d?.value?.toLocaleString?.()} บาท`)
+      .attr('data-tip', (d) => {
+        const itemGrowth = d?.GROWTH;
+        const lastYear = d?.data?.AMOUNT_LASTYEAR;
+        const growthText = itemGrowth != null ? `${(itemGrowth * 100).toFixed(1)}%` : 'N/A';
+        const lastYearText = lastYear != null ? lastYear.toLocaleString() : 'N/A';
+        return `${d?.data?.key}<br>${d?.value?.toLocaleString?.()} บาท<br>ปีที่แล้ว: ${lastYearText} บาท<br>เติบโต: ${growthText}`;
+      })
       .attr('transform', (d) => `translate(${d.x0 || 0},${d.y0 || 0})`);
     // .attr('opacity', 0);
 
@@ -146,7 +176,7 @@ function Treemap({
       .append('rect')
       .attr('class', 'box')
       .attr('rx', 3)
-      .style('fill', 'DarkSlateBlue')
+      .style('fill', (d) => (d?.GROWTH != null ? colorScale(d.GROWTH) : '#666666'))
       .attr('width', (d) => (d.x1 - d.x0) || 0)
       .attr('height', (d) => (d.y1 - d.y0) || 0);
     // .attr('x', d => d.x0)
@@ -174,6 +204,12 @@ function Treemap({
     treemapPieceGroupEnter
       .append('text')
       .attr('class', 'text-value')
+      .attr('font-size', '12px')
+      .attr('fill', 'white');
+
+    treemapPieceGroupEnter
+      .append('text')
+      .attr('class', 'text-growth')
       .attr('font-size', '12px')
       .attr('fill', 'white');
 
@@ -238,13 +274,19 @@ function Treemap({
       .duration(300)
       .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
       .attr('opacity', 1)
-      .attr('data-tip', (d) => `${d?.data?.key}<br>${d?.value?.toLocaleString?.()} บาท`);
+      .attr('data-tip', (d) => {
+        const nodeGrowth = d?.GROWTH;
+        const lastYear = d?.data?.AMOUNT_LASTYEAR;
+        const growthText = nodeGrowth != null ? `${(nodeGrowth * 100).toFixed(1)}%` : 'N/A';
+        const lastYearText = lastYear != null ? lastYear.toLocaleString() : 'N/A';
+        return `${d?.data?.key}<br>${d?.value?.toLocaleString?.()} บาท<br>ปีที่แล้ว: ${lastYearText} บาท<br>เติบโต: ${growthText}`;
+      });
 
     treemapPieceMerged.select('rect.box')
       .transition()
       .duration(300)
       .attr('rx', 3)
-      .attr('fill', 'DarkSlateBlue')
+      .style('fill', (d) => (d?.GROWTH != null ? colorScale(d.GROWTH) : '#666666'))
       .attr('stroke', 'black')
       .attr('stroke-width', gutter)
       .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
@@ -271,6 +313,18 @@ function Treemap({
       .attr('dominant-baseline', 'hanging')
       .attr('opacity', 1)
       .text((d) => `${d.value.toLocaleString()} บาท`);
+
+    treemapPieceMerged.select('text.text-growth')
+      .attr('x', 5)
+      .attr('y', 40)
+      .attr('fill-opacity', 0.7)
+      .attr('dominant-baseline', 'hanging')
+      .attr('opacity', 1)
+      .text((d) => {
+        const itemGrowth = d?.GROWTH;
+        return itemGrowth != null ? `เติบโต ${(itemGrowth * 100).toFixed(1)}%` : '';
+      })
+      .attr('fill', (d) => (d?.GROWTH > 0 ? '#4f4' : d?.GROWTH < 0 ? '#f44' : 'white'));
 
     treemapPieceGroup.exit()
       .transition()
@@ -302,6 +356,7 @@ function Treemap({
     index,
     isMultipleMaxSum,
     sumWindows,
+    colorScale,
   ]);
 
   return (
@@ -317,32 +372,47 @@ function Treemap({
         overflowY: 'auto',
       }}
     >
-      <div style={{
-        paddingLeft: 18,
-        fontSize: 12,
-        marginBottom: -padding + 4,
-        zIndex: 2,
-      }}
+      <div
+        style={{
+          paddingLeft: 18,
+          fontSize: 12,
+          marginBottom: -padding + 4,
+          zIndex: 2,
+        }}
       >
-        <b style={{ whiteSpace: 'nowrap' }}>{filters[filters.length - 1] === 'all' ? 'รวมทุกหน่วยงาน' : filters[filters.length - 1]}</b>
+        <b style={{ whiteSpace: 'nowrap' }}>
+          {filters[filters.length - 1] === 'all' ? 'รวมทุกหน่วยงาน' : filters[filters.length - 1]}
+        </b>
         <br />
         <span style={{ opacity: 0.7 }}>
           {sum.toLocaleString()}
           {' '}
           บาท
+          {growth != null && (
+            <span
+              style={{
+                color: growth > 0 ? '#4f4' : growth < 0 ? '#f44' : 'inherit',
+                marginLeft: '8px',
+              }}
+            >
+              {'('}
+              {(growth * 100).toFixed(1)}
+              {'%)'}
+            </span>
+          )}
         </span>
       </div>
       {isLoading
         && (
-        <FullView
-          style={{
-            backgroundColor: '#000c',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          Loading...
-        </FullView>
+          <FullView
+            style={{
+              backgroundColor: '#000c',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            Loading...
+          </FullView>
         )}
 
       <div
