@@ -77,6 +77,10 @@ const THAI_NAME = {
   BUDGET_PLAN: 'แผนงาน',
   OUTPUT_PROJECT: 'ผลผลิต/โครงการ',
   ITEM: 'รายการ',
+  CATEGORY_LV1: 'ประเภทงบ',
+  CATEGORY_LV2: 'หมวดรายจ่าย',
+  CATEGORY_LV3: 'ประเภทรายจ่าย',
+  CATEGORY_LV4: 'รายการย่อย',
 };
 
 function DataView({
@@ -99,6 +103,42 @@ function DataView({
     if (groupingAxis === 'BUDGET_PLAN') {
       return [
         'BUDGET_PLAN',
+        'MINISTRY',
+        'BUDGETARY_UNIT',
+        'OUTPUT_PROJECT',
+        'ITEM',
+      ];
+    }
+    if (groupingAxis === 'CATEGORY_LV1') {
+      return [
+        'CATEGORY_LV1',
+        'MINISTRY',
+        'BUDGETARY_UNIT',
+        'OUTPUT_PROJECT',
+        'ITEM',
+      ];
+    }
+    if (groupingAxis === 'CATEGORY_LV2') {
+      return [
+        'CATEGORY_LV2',
+        'MINISTRY',
+        'BUDGETARY_UNIT',
+        'OUTPUT_PROJECT',
+        'ITEM',
+      ];
+    }
+    if (groupingAxis === 'CATEGORY_LV3') {
+      return [
+        'CATEGORY_LV3',
+        'MINISTRY',
+        'BUDGETARY_UNIT',
+        'OUTPUT_PROJECT',
+        'ITEM',
+      ];
+    }
+    if (groupingAxis === 'CATEGORY_LV4') {
+      return [
+        'CATEGORY_LV4',
         'MINISTRY',
         'BUDGETARY_UNIT',
         'OUTPUT_PROJECT',
@@ -213,10 +253,14 @@ function DataView({
                     {filters[0] === 'all' && filters.length === 1 ? (
                       <div style={{ display: 'inline-block' }}>
                         <DropdownLink
-                          label={`แบ่งกลุ่มตาม ${groupingAxis === 'MINISTRY' ? 'กระทรวง' : 'แผนงาน'}`}
+                          label={`แบ่งกลุ่มตาม ${THAI_NAME[groupingAxis] || groupingAxis}`}
                           options={[
                             { value: 'MINISTRY', label: 'กระทรวง' },
                             { value: 'BUDGET_PLAN', label: 'แผนงาน' },
+                            { value: 'CATEGORY_LV1', label: 'ประเภทงบ' },
+                            { value: 'CATEGORY_LV2', label: 'หมวดรายจ่าย' },
+                            { value: 'CATEGORY_LV3', label: 'ประเภทรายจ่าย' },
+                            { value: 'CATEGORY_LV4', label: 'รายการย่อย' },
                           ]}
                           value={groupingAxis}
                           onChange={setGroupingAxis}

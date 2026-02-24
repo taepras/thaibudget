@@ -15,7 +15,7 @@ function normalizeMinistry(ministry) {
     if (!ministry) return 'ไม่ระบุ';
 
     // if ministry name contains a trailing money amount, remove it (e.g. "กระทรวงการคลัง 1,000,000 บาท" -> "กระทรวงการคลัง")
-    ministry = ministry.replace(/\s*\d{1,3}(,\d{3})*(\.\d+)?\s*บาท$/, '').trim();
+    ministry = ministry.replace(/\s*\d{1,3}(,\d{3})*(\.\d+)?(\s*บาท)?$/, '').trim();
 
     const ministryNormalizedNameMap = {
         'รายจ่ายเพื่อชดใช้เงินคงคลัง': 'งบประมาณรายจ่ายเพื่อชดใช้เงินคงคลัง',
@@ -84,6 +84,15 @@ function readCsvIntoMap(filePath, targetMap, yearKey, setHeaders) {
                 row.BUDGETARY_UNIT = normalizeMinistry(row.BUDGETARY_UNIT);
                 // eslint-disable-next-line no-param-reassign
                 row.BUDGET_PLAN = normalizeMinistry(row.BUDGET_PLAN);
+                // eslint-disable-next-line no-param-reassign
+                row.CATEGORY_LV1 = normalizeMinistry(row.CATEGORY_LV1);
+                // eslint-disable-next-line no-param-reassign
+                row.CATEGORY_LV2 = normalizeMinistry(row.CATEGORY_LV2);
+                // eslint-disable-next-line no-param-reassign
+                row.CATEGORY_LV3 = normalizeMinistry(row.CATEGORY_LV3);
+                // eslint-disable-next-line no-param-reassign
+                row.CATEGORY_LV4 = normalizeMinistry(row.CATEGORY_LV4);
+
 
                 // console.log(row.FISCAL_YEAR, +yearKey - 543, row.FISCAL_YEAR == +yearKey - 543 ? '✅' : '❌');
                 if (row.FISCAL_YEAR != +yearKey - 543) {
