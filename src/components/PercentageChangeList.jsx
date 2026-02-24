@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { abbreviateNumber } from '../utils/numberFormat';
+import DropdownLink from './DropdownLink';
 
 const Container = styled.div`
   display: flex;
@@ -24,7 +25,7 @@ const Title = styled.h3`
 const ListItem = styled.div`
   display: flex;
   justify-content: space-between;
-  padding: 6px 0;
+  padding: 8px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   align-items: center;
   cursor: pointer;
@@ -41,10 +42,10 @@ const ListItem = styled.div`
 
 const Name = styled.span`
   flex: 1;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   margin-right: 8px;
+  // white-space: nowrap;
+  // text-overflow: ellipsis;
 `;
 
 const PercentChange = styled.span`
@@ -58,75 +59,22 @@ const PercentChange = styled.span`
   }};
 `;
 
-const SortToggle = styled.button`
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.7);
-  cursor: pointer;
-  padding: 0;
-  font-size: 12px;
-  font-style: italic;
-  transition: color 0.2s;
-  text-decoration: underline;
-
-  &:hover {
-    color: rgba(255, 255, 255, 0.9);
-  }
-
-  &::after {
-    content: ' v';
-    display: inline-block;
-    margin-left: 4px;
-    font-size: 11px;
-    font-weight: normal;
-  }
-`;
-
-const SortMenu = styled.div`
-  position: absolute;
-  background: #1a1a1a;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 4px;
-  padding: 8px 0;
-  z-index: 10;
-  min-width: 180px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  top: 20px;
-  left: 0;
-`;
-
-const SortMenuItem = styled.button`
-  background: none;
-  border: none;
-  color: ${(props) => (props.isActive ? '#00ac00' : 'rgba(255, 255, 255, 0.7)')};
-  padding: 8px 16px;
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.2s;
-
-  &:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: #00ac00;
-  }
-
-  &::before {
-    content: '${(props) => (props.isActive ? '✓ ' : '  ')}';
-    margin-right: 4px;
-  }
-`;
-
 function PercentageChangeList({
   data,
   filters,
   hierarchyBy,
+  groupingAxis = 'MINISTRY',
   hoveredItemName = null,
   setHoveredItemName = () => { },
   onItemClick = () => { },
 }) {
   const [sortMode, setSortMode] = useState('percent'); // 'percent', 'amount', 'budget'
-  const [showSortMenu, setShowSortMenu] = useState(false);
+
+  const sortModeLabels = {
+    percent: '% ความเปลี่ยนแปลง',
+    amount: 'จำนวนเงินเปลี่ยนแปลง',
+    budget: 'จำนวนเงินงบประมาณ',
+  };
   const changeData = useMemo(() => {
     if (!data || data.length === 0 || !filters || filters.length === 0) {
       return [];
@@ -134,14 +82,26 @@ function PercentageChangeList({
 
     const activeFilters = filters[0] === 'all' ? filters.slice(1) : filters;
 
+    // Use alternate hierarchy when grouping by BUDGET_PLAN
+    let effectiveHierarchy = [...hierarchyBy];
+    if (groupingAxis === 'BUDGET_PLAN') {
+      effectiveHierarchy = [
+        'BUDGET_PLAN',
+        'MINISTRY',
+        'BUDGETARY_UNIT',
+        'OUTPUT_PROJECT',
+        'ITEM',
+      ];
+    }
+
     // Determine the next hierarchy level to compare items at
-    const levelToCompare = Math.min(activeFilters.length, hierarchyBy.length - 1);
-    const compareField = hierarchyBy[levelToCompare];
+    const levelToCompare = Math.min(activeFilters.length, effectiveHierarchy.length - 1);
+    const compareField = effectiveHierarchy[levelToCompare];
 
     // Filter data: apply all current active filters
     let filtered = data;
     for (let i = 0; i < activeFilters.length; i++) {
-      const filterLevel = hierarchyBy[i];
+      const filterLevel = effectiveHierarchy[i];
       const filterValue = activeFilters[i];
       filtered = filtered.filter((d) => d[filterLevel] === filterValue);
     }
@@ -194,7 +154,7 @@ function PercentageChangeList({
       });
 
     return changes;
-  }, [data, filters, hierarchyBy, sortMode]);
+  }, [data, filters, hierarchyBy, groupingAxis, sortMode]);
 
   return (
     <Container>
@@ -210,48 +170,16 @@ function PercentageChangeList({
           display: 'inline-block',
         }}
       >
-        <SortToggle
-          onClick={() => setShowSortMenu(!showSortMenu)}
-        >
-          เรียงตาม
-          {' '}
-          {sortMode === 'percent' && '% ความเปลี่ยนแปลง'}
-          {sortMode === 'amount' && 'จำนวนเงินเปลี่ยนแปลง'}
-          {sortMode === 'budget' && 'จำนวนเงินงบประมาณ'}
-          {' '}
-          เทียบกับปี 68
-        </SortToggle>
-        {showSortMenu && (
-          <SortMenu>
-            <SortMenuItem
-              isActive={sortMode === 'percent'}
-              onClick={() => {
-                setSortMode('percent');
-                setShowSortMenu(false);
-              }}
-            >
-              % ความเปลี่ยนแปลง
-            </SortMenuItem>
-            <SortMenuItem
-              isActive={sortMode === 'amount'}
-              onClick={() => {
-                setSortMode('amount');
-                setShowSortMenu(false);
-              }}
-            >
-              จำนวนเงินเปลี่ยนแปลง
-            </SortMenuItem>
-            <SortMenuItem
-              isActive={sortMode === 'budget'}
-              onClick={() => {
-                setSortMode('budget');
-                setShowSortMenu(false);
-              }}
-            >
-              จำนวนเงินงบประมาณ
-            </SortMenuItem>
-          </SortMenu>
-        )}
+        <DropdownLink
+          label={`เรียงตาม ${sortModeLabels[sortMode]} เทียบกับปี 68`}
+          options={[
+            { value: 'percent', label: '% ความเปลี่ยนแปลง' },
+            { value: 'amount', label: 'จำนวนเงินเปลี่ยนแปลง' },
+            { value: 'budget', label: 'จำนวนเงินงบประมาณ' },
+          ]}
+          value={sortMode}
+          onChange={setSortMode}
+        />
       </div>
       {changeData.length > 0 && (
         <div style={{ flexGrow: 1, overflowY: 'auto' }}>
@@ -288,7 +216,7 @@ function PercentageChangeList({
                 }
               >
                 <Name title={item.name}>
-                  {item.name.length > 40 ? `${item.name.substring(0, 37)}...` : item.name}
+                  {item.name}
                 </Name>
                 <PercentChange growth={item.growth} style={{ color: displayColor }}>
                   {displayValue}

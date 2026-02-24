@@ -12,6 +12,11 @@ const csv = require('csv-parser');
 
 // Normalize ministry names to canonical form
 function normalizeMinistry(ministry) {
+    if (!ministry) return 'ไม่ระบุ';
+
+    // if ministry name contains a trailing money amount, remove it (e.g. "กระทรวงการคลัง 1,000,000 บาท" -> "กระทรวงการคลัง")
+    ministry = ministry.replace(/\s*\d{1,3}(,\d{3})*(\.\d+)?\s*บาท$/, '').trim();
+
     const ministryNormalizedNameMap = {
         'รายจ่ายเพื่อชดใช้เงินคงคลัง': 'งบประมาณรายจ่ายเพื่อชดใช้เงินคงคลัง',
         'ส่วนราชการไม่สังกัดสำนักนายกรัฐมนตรีฯ': 'ส่วนราชการไม่สังกัดสำนักนายกรัฐมนตรี กระทรวง หรือทบวง และหน่วยงานภายใต้การควบคุมดูแลของนายกรัฐมนตรี',
@@ -48,7 +53,7 @@ function createKey(row) {
     return [
         normalizeMinistry(row.MINISTRY),
         normalizeMinistry(row.BUDGETARY_UNIT),
-        row.BUDGET_PLAN,
+        normalizeMinistry(row.BUDGET_PLAN),
         row.CROSS_FUNC,
         row.OUTPUT,
         row.PROJECT,
@@ -72,9 +77,13 @@ function readCsvIntoMap(filePath, targetMap, yearKey, setHeaders) {
                     setHeaders(Object.keys(row));
                     seenFirstRow = true;
                 }
-                // Normalize ministry name in the row
+                // Normalize ministry, budgetary unit, and budget plan names in the row
                 // eslint-disable-next-line no-param-reassign
                 row.MINISTRY = normalizeMinistry(row.MINISTRY);
+                // eslint-disable-next-line no-param-reassign
+                row.BUDGETARY_UNIT = normalizeMinistry(row.BUDGETARY_UNIT);
+                // eslint-disable-next-line no-param-reassign
+                row.BUDGET_PLAN = normalizeMinistry(row.BUDGET_PLAN);
 
                 // console.log(row.FISCAL_YEAR, +yearKey - 543, row.FISCAL_YEAR == +yearKey - 543 ? '✅' : '❌');
                 if (row.FISCAL_YEAR != +yearKey - 543) {

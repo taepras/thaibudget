@@ -9,6 +9,7 @@ import Treemap from './Treemap';
 import YearComparison from './YearComparison';
 import PercentageChangeList from './PercentageChangeList';
 import FullView from './FullView';
+import DropdownLink from './DropdownLink';
 
 const TOP_BAR_HEIGHT = 60;
 
@@ -90,6 +91,7 @@ function DataView({
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState(['all']);
   const [hoveredItemName, setHoveredItemName] = useState(null);
+  const [groupingAxis, setGroupingAxis] = useState('MINISTRY'); // 'MINISTRY' or 'BUDGET_PLAN'
   const treemapRef = useRef(null);
 
   const filterDataByQuery = useCallback((datum, query) => {
@@ -155,7 +157,8 @@ function DataView({
             flexGrow: 1,
             display: 'flex',
             alignItems: 'center',
-            overflowX: 'auto',
+            fontSize: 14,
+            // overflowX: 'auto',
           }}
         >
           {/* <button type="button" onClick={() => setDisplayMode('treemap')}>treemap</button>
@@ -177,7 +180,7 @@ function DataView({
               >
                 <small style={{ opacity: '0.4', whiteSpace: 'nowrap' }}>{i > 0 && THAI_NAME[hierarchyBy[i - 1]]}</small>
                 {i > 0 && <br />}
-                <span style={{ textDecoration: i < filters.length - 1 ? 'underline' : 'none', whiteSpace: 'nowrap' }}>
+                <span style={{ fontFamily: 'inherit', textDecoration: i < filters.length - 1 ? 'underline' : 'none', whiteSpace: 'nowrap' }}>
                   {i === 0
                     ? (
                       searchQuery === ''
@@ -193,11 +196,25 @@ function DataView({
                     <small style={{ color: 'white', marginRight: 8, opacity: '0.4' }}>
                       :
                     </small>
-                    <small style={{ color: 'white', marginRight: 8, opacity: '0.4' }}>
-                      แบ่งตาม
-                      {' '}
-                      {THAI_NAME[hierarchyBy[i]]}
-                    </small>
+                    {filters[0] === 'all' && filters.length === 1 ? (
+                      <div style={{ display: 'inline-block' }}>
+                        <DropdownLink
+                          label={`แบ่งกลุ่มตาม ${groupingAxis === 'MINISTRY' ? 'กระทรวง' : 'แผนงาน'}`}
+                          options={[
+                            { value: 'MINISTRY', label: 'กระทรวง' },
+                            { value: 'BUDGET_PLAN', label: 'แผนงาน' },
+                          ]}
+                          value={groupingAxis}
+                          onChange={setGroupingAxis}
+                        />
+                      </div>
+                    ) : (
+                      <small style={{ color: 'white', marginRight: 8, opacity: '0.4' }}>
+                        แบ่งตาม
+                        {' '}
+                        {THAI_NAME[hierarchyBy[i]]}
+                      </small>
+                    )}
                   </>
                 )}
               {i < filters.length - 1
@@ -244,6 +261,7 @@ function DataView({
             filters={filters}
             hierarchyBy={hierarchyBy}
             setFilters={setFilters}
+            groupingAxis={groupingAxis}
             setCurrentSum={(x) => {
               // console.log('!!setting sum', x, setCurrentSum);
               setCurrentSum(x);
@@ -256,11 +274,17 @@ function DataView({
           />
         </div>
         <RightSidebar>
-          <YearComparison data={filteredData} filters={filters} hierarchyBy={hierarchyBy} />
+          <YearComparison
+            data={filteredData}
+            filters={filters}
+            hierarchyBy={hierarchyBy}
+            groupingAxis={groupingAxis}
+          />
           <PercentageChangeList
             data={filteredData}
             filters={filters}
             hierarchyBy={hierarchyBy}
+            groupingAxis={groupingAxis}
             hoveredItemName={hoveredItemName}
             setHoveredItemName={setHoveredItemName}
             onItemClick={handlePercentageListClick}

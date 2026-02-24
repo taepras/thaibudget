@@ -62,10 +62,27 @@ const BarValue = styled.div`
   color: white;
 `;
 
-function YearComparison({ data, filters, hierarchyBy }) {
+function YearComparison({
+  data,
+  filters,
+  hierarchyBy,
+  groupingAxis,
+}) {
   const yearData = useMemo(() => {
     if (!data || data.length === 0 || !filters || filters.length === 0) {
       return [];
+    }
+
+    // Calculate effective hierarchy based on grouping axis
+    let effectiveHierarchy = [...hierarchyBy];
+    if (groupingAxis === 'BUDGET_PLAN') {
+      effectiveHierarchy = [
+        'BUDGET_PLAN',
+        'MINISTRY',
+        'BUDGETARY_UNIT',
+        'OUTPUT_PROJECT',
+        'ITEM',
+      ];
     }
 
     // Build the filtering logic based on current filters
@@ -74,7 +91,7 @@ function YearComparison({ data, filters, hierarchyBy }) {
 
     // Apply all active filters (if any)
     for (let i = 0; i < activeFilters.length; i++) {
-      const filterLevel = hierarchyBy[i];
+      const filterLevel = effectiveHierarchy[i];
       const filterValue = activeFilters[i];
       filtered = filtered.filter((d) => d[filterLevel] === filterValue);
     }
@@ -102,7 +119,7 @@ function YearComparison({ data, filters, hierarchyBy }) {
     return Object.entries(years)
       .map(([year, amount]) => ({ year, amount }))
       .sort((a, b) => parseInt(a.year, 10) - parseInt(b.year, 10));
-  }, [data, filters, hierarchyBy]);
+  }, [data, filters, hierarchyBy, groupingAxis]);
 
   const maxAmount = useMemo(
     () => d3.max(yearData, (d) => d.amount) || 1,

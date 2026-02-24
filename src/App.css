@@ -6,6 +6,10 @@ body {
   color: white;
 }
 
+button {
+  font-family: "IBM Plex Sans Thai Looped", sans-serif;
+}
+
 /* .treemap-piece {
   transition: all 0.2s;
 } */
