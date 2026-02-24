@@ -12,12 +12,18 @@ const csv = require('csv-parser');
 
 // Normalize ministry names to canonical form
 function normalizeMinistry(ministry) {
-    if (ministry === 'อปท' || ministry === 'องค์กรปกครองส่วนท้องถิ่น') {
-        return 'องค์กรปกครองส่วนท้องถิ่น';
+    const ministryNormalizedNameMap = {
+        'รายจ่ายเพื่อชดใช้เงินคงคลัง': 'งบประมาณรายจ่ายเพื่อชดใช้เงินคงคลัง',
+        'ส่วนราชการไม่สังกัดสำนักนายกรัฐมนตรีฯ': 'ส่วนราชการไม่สังกัดสำนักนายกรัฐมนตรี กระทรวง หรือทบวง และหน่วยงานภายใต้การควบคุมดูแลของนายกรัฐมนตรี',
+        'ส่วนราชการไม่สังกัดสำนักนายกรัฐมนตรี กระทรวง หรือทบวงและหน่วยงานภายใต้การควบคุมดูแลของนายกรัฐมนตรี': 'ส่วนราชการไม่สังกัดสำนักนายกรัฐมนตรี กระทรวง หรือทบวง และหน่วยงานภายใต้การควบคุมดูแลของนายกรัฐมนตรี',
+        'กรมขนส่งทางบก': 'กรมการขนส่งทางบก',
+        'อปท': 'องค์กรปกครองส่วนท้องถิ่น',
     }
-    if (ministry === 'ส่วนราชการไม่สังกัดสำนักนายกรัฐมนตรีฯ' || ministry === 'ส่วนราชการไม่สังกัดสำนักนายกรัฐมนตรี กระทรวง หรือทบวง และหน่วยงานภายใต้การควบคุมดูแลของนายกรัฐมนตรี') {
-        return 'ส่วนราชการไม่สังกัดสำนักนายกรัฐมนตรี กระทรวง หรือทบวง และหน่วยงานภายใต้การควบคุมดูแลของนายกรัฐมนตรี';
+
+    if (ministryNormalizedNameMap[ministry]) {
+        return ministryNormalizedNameMap[ministry];
     }
+
     return ministry;
 }
 
@@ -41,7 +47,7 @@ const headersByYear = {
 function createKey(row) {
     return [
         normalizeMinistry(row.MINISTRY),
-        row.BUDGETARY_UNIT,
+        normalizeMinistry(row.BUDGETARY_UNIT),
         row.BUDGET_PLAN,
         row.CROSS_FUNC,
         row.OUTPUT,
@@ -75,7 +81,7 @@ function readCsvIntoMap(filePath, targetMap, yearKey, setHeaders) {
                     // skip row
                     return;
                 }
-                
+
                 const key = createKey(row);
                 const amount = row.AMOUNT ? parseFloat(row.AMOUNT.replace(/,/g, '')) : 0;
 
@@ -94,7 +100,7 @@ function readCsvIntoMap(filePath, targetMap, yearKey, setHeaders) {
 
 function buildHeaders() {
     const headerSet = new Set();
-    
+
     // Collect all headers from all years (excluding AMOUNT and AMOUNT_LASTYEAR)
     Object.values(headersByYear).forEach((headers) => {
         headers.forEach((h) => {
@@ -103,7 +109,7 @@ function buildHeaders() {
             }
         });
     });
-    
+
     const baseHeaders = Array.from(headerSet);
     // Add amount columns for each year
     ['2565', '2566', '2567', '2568', '2569'].forEach((year) => {
@@ -155,7 +161,7 @@ function writeOuterJoin() {
         }
 
         const values = buildRowValues(baseRow, headers);
-        
+
         // Fill in amounts for each year
         years.forEach((year) => {
             const amountIndex = headers.indexOf(`AMOUNT_${year}`);

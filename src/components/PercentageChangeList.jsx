@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import styled from 'styled-components';
+import { abbreviateNumber } from '../utils/numberFormat';
 
 const Container = styled.div`
   display: flex;
@@ -10,6 +11,7 @@ const Container = styled.div`
   font-size: 11px;
   overflow-y: auto;
   flex-grow: 1;
+  position: relative;
 `;
 
 const Title = styled.h3`
@@ -56,6 +58,65 @@ const PercentChange = styled.span`
   }};
 `;
 
+const SortToggle = styled.button`
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+  font-style: italic;
+  transition: color 0.2s;
+  text-decoration: underline;
+
+  &:hover {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  &::after {
+    content: ' v';
+    display: inline-block;
+    margin-left: 4px;
+    font-size: 11px;
+    font-weight: normal;
+  }
+`;
+
+const SortMenu = styled.div`
+  position: absolute;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 4px;
+  padding: 8px 0;
+  z-index: 10;
+  min-width: 180px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  top: 20px;
+  left: 0;
+`;
+
+const SortMenuItem = styled.button`
+  background: none;
+  border: none;
+  color: ${(props) => (props.isActive ? '#00ac00' : 'rgba(255, 255, 255, 0.7)')};
+  padding: 8px 16px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #00ac00;
+  }
+
+  &::before {
+    content: '${(props) => (props.isActive ? '✓ ' : '  ')}';
+    margin-right: 4px;
+  }
+`;
+
 function PercentageChangeList({
   data,
   filters,
@@ -64,6 +125,8 @@ function PercentageChangeList({
   setHoveredItemName = () => { },
   onItemClick = () => { },
 }) {
+  const [sortMode, setSortMode] = useState('percent'); // 'percent', 'amount', 'budget'
+  const [showSortMenu, setShowSortMenu] = useState(false);
   const changeData = useMemo(() => {
     if (!data || data.length === 0 || !filters || filters.length === 0) {
       return [];
@@ -104,7 +167,7 @@ function PercentageChangeList({
     // Calculate % changes
     const changes = Array.from(groups.entries())
       .map(([name, { amount69, amount68 }]) => {
-        const isNew = amount68 === 0;
+        const isNew = amount68 === 0 && amount69 > 0;
         const growth = amount68 > 0 ? (amount69 - amount68) / amount68 : (amount69 > 0 ? 1 : 0);
         return {
           name,
@@ -116,14 +179,22 @@ function PercentageChangeList({
         };
       })
       .sort((a, b) => {
-        // New items first, then by growth
+        // New items first, then by selected sort mode
         if (a.isNew && !b.isNew) return -1;
         if (!a.isNew && b.isNew) return 1;
+
+        if (sortMode === 'amount') {
+          return b.diff - a.diff;
+        }
+        if (sortMode === 'budget') {
+          return b.amount69 - a.amount69;
+        }
+        // Default: 'percent'
         return b.growth - a.growth;
       });
 
     return changes;
-  }, [data, filters, hierarchyBy]);
+  }, [data, filters, hierarchyBy, sortMode]);
 
   return (
     <Container>
@@ -134,35 +205,97 @@ function PercentageChangeList({
         style={{
           marginBottom: '12px',
           fontSize: 12,
-          opacity: 0.5,
-          fontStyle: 'italic',
+          opacity: 1,
+          position: 'relative',
+          display: 'inline-block',
         }}
       >
-        เทียบกับปี 2568
+        <SortToggle
+          onClick={() => setShowSortMenu(!showSortMenu)}
+        >
+          เรียงตาม
+          {' '}
+          {sortMode === 'percent' && '% ความเปลี่ยนแปลง'}
+          {sortMode === 'amount' && 'จำนวนเงินเปลี่ยนแปลง'}
+          {sortMode === 'budget' && 'จำนวนเงินงบประมาณ'}
+          {' '}
+          เทียบกับปี 68
+        </SortToggle>
+        {showSortMenu && (
+          <SortMenu>
+            <SortMenuItem
+              isActive={sortMode === 'percent'}
+              onClick={() => {
+                setSortMode('percent');
+                setShowSortMenu(false);
+              }}
+            >
+              % ความเปลี่ยนแปลง
+            </SortMenuItem>
+            <SortMenuItem
+              isActive={sortMode === 'amount'}
+              onClick={() => {
+                setSortMode('amount');
+                setShowSortMenu(false);
+              }}
+            >
+              จำนวนเงินเปลี่ยนแปลง
+            </SortMenuItem>
+            <SortMenuItem
+              isActive={sortMode === 'budget'}
+              onClick={() => {
+                setSortMode('budget');
+                setShowSortMenu(false);
+              }}
+            >
+              จำนวนเงินงบประมาณ
+            </SortMenuItem>
+          </SortMenu>
+        )}
       </div>
       {changeData.length > 0 && (
         <div style={{ flexGrow: 1, overflowY: 'auto' }}>
-          {changeData.map((item) => (
-            <ListItem
-              key={item.name}
-              onClick={() => onItemClick(item.name)}
-              onMouseEnter={() => setHoveredItemName(item.name)}
-              onMouseLeave={() => setHoveredItemName(null)}
-              style={
-                {
-                  backgroundColor: hoveredItemName === item.name ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                  borderRadius: '4px',
+          {changeData.map((item) => {
+            let displayValue = '';
+            let displayColor = '';
+
+            if (sortMode === 'percent') {
+              displayValue = item.isNew ? 'ใหม่' : `${(item.growth * 100).toFixed(1)}%`;
+              if (item.isNew) displayColor = '#00cccc'; // Bright green for new items
+              else if (item.growth > 0.05) displayColor = '#00ac00';
+              else if (item.growth > 0) displayColor = '#88dd88';
+              else if (item.growth > -0.05) displayColor = '#ff9999';
+              else displayColor = '#cc0000';
+            } else if (sortMode === 'amount') {
+              displayValue = `${item.diff > 0 ? '+' : ''}${abbreviateNumber(item.diff)}`;
+              displayColor = item.diff >= 0 ? '#00ac00' : '#cc0000';
+            } else if (sortMode === 'budget') {
+              displayValue = abbreviateNumber(item.amount69);
+              displayColor = '#00ac00';
+            }
+
+            return (
+              <ListItem
+                key={item.name}
+                onClick={() => onItemClick(item.name)}
+                onMouseEnter={() => setHoveredItemName(item.name)}
+                onMouseLeave={() => setHoveredItemName(null)}
+                style={
+                  {
+                    backgroundColor: hoveredItemName === item.name ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                    borderRadius: '4px',
+                  }
                 }
-              }
-            >
-              <Name title={item.name}>
-                {item.name.length > 40 ? `${item.name.substring(0, 37)}...` : item.name}
-              </Name>
-              <PercentChange growth={item.growth}>
-                {item.isNew ? 'ใหม่' : `${(item.growth * 100).toFixed(1)}%`}
-              </PercentChange>
-            </ListItem>
-          ))}
+              >
+                <Name title={item.name}>
+                  {item.name.length > 40 ? `${item.name.substring(0, 37)}...` : item.name}
+                </Name>
+                <PercentChange growth={item.growth} style={{ color: displayColor }}>
+                  {displayValue}
+                </PercentChange>
+              </ListItem>
+            );
+          })}
         </div>
       )}
       {changeData.length === 0 && (

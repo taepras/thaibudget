@@ -32,6 +32,7 @@ function TreemapComponent({
   isMultipleMaxSum = false,
   sumWindows = [],
   hoveredItemName = null,
+  colorScaleMaxValue = 0.3,
 }, ref) {
   const {
     observe, unobserve, width, height, entry,
@@ -72,15 +73,15 @@ function TreemapComponent({
   const [displayMode, setDisplayMode] = useState('treemap'); // or 'bar'
 
   const colorScale = useMemo(() => d3.scaleLinear()
-    .domain([-0.5, 0, 0.5]) // -50% to +50% growth
+    .domain([-colorScaleMaxValue, 0, colorScaleMaxValue]) // -50% to +50% growth
     .range(['#cf0000ff', '#333333', '#00ac00ff'])
-    .clamp(true), []);
+    .clamp(true), [colorScaleMaxValue]);
 
   const getNodeColor = useCallback((node) => {
     // New items (only in 2026, no amount in 2025) get the greenest color
     const lastYear = node?.AMOUNT_LASTYEAR;
     if (lastYear == null || lastYear === 0) {
-      return '#00ff00ff'; // Brightest green for new items
+      return '#00aaaaff'; // Brightest green for new items
     }
     // Existing items use the growth-based color scale
     return node?.GROWTH != null ? colorScale(node.GROWTH) : '#666666';
@@ -442,27 +443,53 @@ function TreemapComponent({
           fontSize: 12,
           marginBottom: -padding + 4,
           zIndex: 2,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          paddingRight: 18,
         }}
       >
-        <b style={{ whiteSpace: 'nowrap', fontSize: 16 }}>
-          {filters[filters.length - 1] === 'all' ? 'รวมทุกหน่วยงาน' : filters[filters.length - 1]}
-        </b>
-        <br />
-        <span style={{ opacity: 0.7 }}>
-          {abbreviateNumber(sum)}
-          {growth != null && (
-            <span
-              style={{
-                color: growth > 0 ? '#4f4' : growth < 0 ? '#f44' : 'inherit',
-                marginLeft: '8px',
-              }}
-            >
-              {'('}
-              {(growth >= 0 ? '+' : '') + (growth * 100).toFixed(1)}
-              {'% จากปีก่อน)'}
-            </span>
-          )}
-        </span>
+        <div>
+          <b style={{ whiteSpace: 'nowrap', fontSize: 16 }}>
+            {filters[filters.length - 1] === 'all' ? 'รวมทุกหน่วยงาน' : filters[filters.length - 1]}
+          </b>
+          <br />
+          <span style={{ opacity: 0.7 }}>
+            {abbreviateNumber(sum)}
+            {growth != null && (
+              <span
+                style={{
+                  color: growth > 0 ? '#4f4' : growth < 0 ? '#f44' : 'inherit',
+                  marginLeft: '8px',
+                }}
+              >
+                {'('}
+                {(growth >= 0 ? '+' : '') + (growth * 100).toFixed(1)}
+                {'% จากปีก่อน)'}
+              </span>
+            )}
+          </span>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            fontSize: 11,
+            opacity: 0.7,
+            gap: '6px',
+            marginTop: 4,
+          }}
+        >
+          <span>{`-${colorScaleMaxValue * 100}%`}</span>
+          <div
+            style={{
+              width: '80px',
+              height: '10px',
+              background: 'linear-gradient(to right, #cf0000, #333333, #00ac00)',
+            }}
+          />
+          <span>{`+${colorScaleMaxValue * 100}%`}</span>
+        </div>
       </div>
       {isLoading
         && (
