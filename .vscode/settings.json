@@ -1,7 +1,7 @@
 {
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true
+    "source.fixAll.eslint": "explicit"
   },
   "eslint.validate": [
     "javascript",
@@ -10,12 +10,19 @@
     "typescriptreact"
   ],
   "eslint.format.enable": true,
+  "eslint.lintTask.enable": true,
   "[javascript]": {
     "editor.defaultFormatter": "dbaeumer.vscode-eslint",
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit"
+    }
   },
   "[javascriptreact]": {
     "editor.defaultFormatter": "dbaeumer.vscode-eslint",
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit"
+    }
   }
 }

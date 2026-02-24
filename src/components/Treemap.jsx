@@ -384,7 +384,7 @@ function TreemapComponent({
       .attr('opacity', 1)
       .text((d) => {
         const itemGrowth = d?.GROWTH;
-        return itemGrowth != null ? `${itemGrowth >= 0 ? 'เพิ่มขึ้น' : 'ลดลง'} ${(itemGrowth * 100).toFixed(1)}%` : '';
+        return itemGrowth != null ? `${itemGrowth >= 0 ? '+' : ''}${(itemGrowth * 100).toFixed(1)}%` : '';
       })
       .attr('fill', (d) => (d?.GROWTH > 0 ? '#4f4' : d?.GROWTH < 0 ? '#f44' : 'white'));
 
@@ -444,7 +444,7 @@ function TreemapComponent({
           zIndex: 2,
         }}
       >
-        <b style={{ whiteSpace: 'nowrap' }}>
+        <b style={{ whiteSpace: 'nowrap', fontSize: 16 }}>
           {filters[filters.length - 1] === 'all' ? 'รวมทุกหน่วยงาน' : filters[filters.length - 1]}
         </b>
         <br />
@@ -458,8 +458,8 @@ function TreemapComponent({
               }}
             >
               {'('}
-              {(growth * 100).toFixed(1)}
-              {'%)'}
+              {(growth >= 0 ? '+' : '') + (growth * 100).toFixed(1)}
+              {'% จากปีก่อน)'}
             </span>
           )}
         </span>
