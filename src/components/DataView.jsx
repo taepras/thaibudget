@@ -1,5 +1,5 @@
 import React, {
-  useCallback, useEffect, useMemo, useState,
+  useCallback, useEffect, useMemo, useState, useRef,
 } from 'react';
 import * as d3 from 'd3';
 import styled from 'styled-components';
@@ -15,8 +15,8 @@ const TOP_BAR_HEIGHT = 60;
 const RightSidebar = styled.div`
   display: flex;
   flex-direction: column;
-  width: 280px;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  width: 320px;
+  // border-left: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
 
   @media screen and (orientation: portrait) {
@@ -89,6 +89,8 @@ function DataView({
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState(['all']);
+  const [hoveredItemName, setHoveredItemName] = useState(null);
+  const treemapRef = useRef(null);
 
   const filterDataByQuery = useCallback((datum, query) => {
     const searchLevels = [
@@ -125,6 +127,11 @@ function DataView({
     setFilters(temp);
     // history.push(`/${temp.join('/')}`);
   };
+
+  const handlePercentageListClick = useCallback((itemName) => {
+    // Trigger the actual treemap click to get existing transitions
+    treemapRef.current?.triggerItemClick(itemName);
+  }, []);
 
   return (
     <FullView>
@@ -218,13 +225,20 @@ function DataView({
           />
         </CreditLink>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'row', flexGrow: 1 }}>
+      <div style={{
+        display: 'flex',
+        flexDirection: 'row',
+        flexGrow: 1,
+        overflow: 'hidden',
+      }}
+      >
         <div style={{
           position: 'relative',
           flexGrow: 1,
         }}
         >
           <Treemap
+            ref={treemapRef}
             data={filteredData}
             isLoading={isLoading}
             filters={filters}
@@ -238,11 +252,19 @@ function DataView({
             index={index}
             isMultipleMaxSum={isMultipleMaxSum}
             sumWindows={sumWindows}
+            hoveredItemName={hoveredItemName}
           />
         </div>
         <RightSidebar>
           <YearComparison data={filteredData} filters={filters} hierarchyBy={hierarchyBy} />
-          <PercentageChangeList data={filteredData} filters={filters} hierarchyBy={hierarchyBy} />
+          <PercentageChangeList
+            data={filteredData}
+            filters={filters}
+            hierarchyBy={hierarchyBy}
+            hoveredItemName={hoveredItemName}
+            setHoveredItemName={setHoveredItemName}
+            onItemClick={handlePercentageListClick}
+          />
         </RightSidebar>
       </div>
     </FullView>

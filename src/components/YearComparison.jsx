@@ -1,15 +1,15 @@
 import React, { useMemo } from 'react';
 import * as d3 from 'd3';
 import styled from 'styled-components';
+import { abbreviateNumber } from '../utils/numberFormat';
 
 const Container = styled.div`
   display: flex;
   flex-direction: column;
   padding: 16px;
-  // background: #1a1a1a;
   color: white;
   font-size: 12px;
-  overflow-y: auto;
+  flex-grow: 1;
 `;
 
 const Title = styled.h3`
@@ -24,7 +24,6 @@ const ChartContainer = styled.div`
   align-items: flex-end;
   gap: 4px;
   height: 180px;
-  margin-bottom: 20px;
 `;
 
 const BarSlot = styled.div`
@@ -59,19 +58,11 @@ const BarLabel = styled.div`
 
 const BarValue = styled.div`
   font-size: 9px;
-  opacity: 0.7;
+  // opacity: 0.7;
   color: white;
 `;
 
 function YearComparison({ data, filters, hierarchyBy }) {
-  // Generate a title based on the focused scope
-  const scopeTitle = useMemo(() => {
-    if (!filters || filters.length === 0) return 'ข้อมูลรายปี';
-    if (filters.length === 1 && filters[0] === 'all') return 'งบประมาณทั้งหมด';
-    // Return the last active filter value (the focused item)
-    return filters[filters.length - 1];
-  }, [filters]);
-
   const yearData = useMemo(() => {
     if (!data || data.length === 0 || !filters || filters.length === 0) {
       return [];
@@ -129,8 +120,8 @@ function YearComparison({ data, filters, hierarchyBy }) {
 
   return (
     <Container>
-      <Title title={scopeTitle}>
-        {scopeTitle.length > 30 ? `${scopeTitle.substring(0, 27)}...` : scopeTitle}
+      <Title>
+        ข้อมูลรายปีย้อนหลัง
       </Title>
       <ChartContainer>
         {yearData.map((d) => (
@@ -146,26 +137,24 @@ function YearComparison({ data, filters, hierarchyBy }) {
             <BarSlot>
               <Bar
                 style={{ height: `${(d.amount / maxAmount) * 100}%`, minHeight: '6px' }}
-                title={`${d.year}: ${d.amount.toLocaleString()}`}
+                title={`${d.year}: ${abbreviateNumber(d.amount)}`}
               >
-                <BarValue>{d.amount > 0 ? `${(d.amount / 1e9).toFixed(1)}B` : '0'}</BarValue>
+                <BarValue>{abbreviateNumber(d.amount)}</BarValue>
               </Bar>
             </BarSlot>
             <BarLabel>{d.year}</BarLabel>
           </div>
         ))}
       </ChartContainer>
-      <div style={{ fontSize: 11, opacity: 0.6 }}>
+      {/* <div style={{ fontSize: 11, opacity: 0.6 }}>
         {yearData.map((d) => (
           <div key={d.year}>
             {d.year}
             {': '}
-            {d.amount.toLocaleString()}
-            {' '}
-            บาท
+            {abbreviateNumber(d.amount)}
           </div>
         ))}
-      </div>
+      </div> */}
     </Container>
   );
 }

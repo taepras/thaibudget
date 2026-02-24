@@ -8,6 +8,7 @@ const FullView = styled.div`
   right: 0;
   bottom: 0;
   display: flex;
+  overflow: hidden;
   flex-direction: column;
 `;
 

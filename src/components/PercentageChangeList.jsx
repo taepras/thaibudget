@@ -25,6 +25,12 @@ const ListItem = styled.div`
   padding: 6px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   align-items: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+  }
 
   &:last-child {
     border-bottom: none;
@@ -50,15 +56,14 @@ const PercentChange = styled.span`
   }};
 `;
 
-function PercentageChangeList({ data, filters, hierarchyBy }) {
-  // Generate a title based on the focused scope
-  const scopeTitle = useMemo(() => {
-    if (!filters || filters.length === 0) return '% เปลี่ยนแปลง';
-    if (filters.length === 1 && filters[0] === 'all') return '% เปลี่ยนแปลงรายหน่วยงาน';
-    // Return the last active filter value (the focused item)
-    return `% เปลี่ยนแปลง: ${filters[filters.length - 1]}`;
-  }, [filters]);
-
+function PercentageChangeList({
+  data,
+  filters,
+  hierarchyBy,
+  hoveredItemName = null,
+  setHoveredItemName = () => { },
+  onItemClick = () => { },
+}) {
   const changeData = useMemo(() => {
     if (!data || data.length === 0 || !filters || filters.length === 0) {
       return [];
@@ -120,40 +125,49 @@ function PercentageChangeList({ data, filters, hierarchyBy }) {
     return changes;
   }, [data, filters, hierarchyBy]);
 
-  if (changeData.length === 0) {
-    return (
-      <Container>
-        <Title>% เปลี่ยนแปลง</Title>
-        <div style={{ opacity: 0.5 }}>ไม่มีข้อมูล</div>
-      </Container>
-    );
-  }
-
   return (
     <Container>
-      <Title title={scopeTitle}>
-        {scopeTitle.length > 30 ? `${scopeTitle.substring(0, 27)}...` : scopeTitle}
+      <Title style={{ marginBottom: 0 }}>
+        ความเปลี่ยนแปลง
       </Title>
-      <div style={{ maxHeight: '360px', overflowY: 'auto' }}>
-        {changeData.map((item) => (
-          <ListItem key={item.name}>
-            <Name title={item.name}>{item.name.length > 25 ? `${item.name.substring(0, 22)}...` : item.name}</Name>
-            <PercentChange growth={item.growth}>
-              {item.isNew ? 'ใหม่' : `${(item.growth * 100).toFixed(1)}%`}
-            </PercentChange>
-          </ListItem>
-        ))}
-      </div>
       <div
         style={{
-          marginTop: 12,
-          fontSize: 10,
+          marginBottom: '12px',
+          fontSize: 12,
           opacity: 0.5,
           fontStyle: 'italic',
         }}
       >
-        หมายเหตุ: % เปลี่ยนแปลงจาก 2025 ถึง 2026
+        เทียบกับปี 2568
       </div>
+      {changeData.length > 0 && (
+        <div style={{ flexGrow: 1, overflowY: 'auto' }}>
+          {changeData.map((item) => (
+            <ListItem
+              key={item.name}
+              onClick={() => onItemClick(item.name)}
+              onMouseEnter={() => setHoveredItemName(item.name)}
+              onMouseLeave={() => setHoveredItemName(null)}
+              style={
+                {
+                  backgroundColor: hoveredItemName === item.name ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                  borderRadius: '4px',
+                }
+              }
+            >
+              <Name title={item.name}>
+                {item.name.length > 40 ? `${item.name.substring(0, 37)}...` : item.name}
+              </Name>
+              <PercentChange growth={item.growth}>
+                {item.isNew ? 'ใหม่' : `${(item.growth * 100).toFixed(1)}%`}
+              </PercentChange>
+            </ListItem>
+          ))}
+        </div>
+      )}
+      {changeData.length === 0 && (
+        <div style={{ opacity: 0.5 }}>ไม่มีข้อมูล</div>
+      )}
     </Container>
   );
 }

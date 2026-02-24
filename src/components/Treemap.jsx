@@ -1,5 +1,5 @@
 import React, {
-  useCallback, useEffect, useMemo, useRef, useState,
+  useCallback, useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle,
 } from 'react';
 
 import * as d3 from 'd3';
@@ -7,6 +7,7 @@ import { nest } from 'd3-collection';
 import useDimensions from 'react-cool-dimensions';
 import ReactTooltip from 'react-tooltip';
 import { useHistory, useLocation } from 'react-router-dom';
+import { abbreviateNumber } from '../utils/numberFormat';
 import FullView from './FullView';
 
 const THAI_NAME = {
@@ -17,7 +18,7 @@ const THAI_NAME = {
   ITEM: 'รายการ',
 };
 
-function Treemap({
+function TreemapComponent({
   data = [],
   isLoading = true,
   padding = 16,
@@ -30,7 +31,8 @@ function Treemap({
   index = 0,
   isMultipleMaxSum = false,
   sumWindows = [],
-}) {
+  hoveredItemName = null,
+}, ref) {
   const {
     observe, unobserve, width, height, entry,
   } = useDimensions({
@@ -46,6 +48,24 @@ function Treemap({
   // const history = useHistory();
 
   const svgRef = useRef(null);
+
+  useImperativeHandle(ref, () => ({
+    triggerItemClick: (itemName) => {
+      // Find the element with matching data key and trigger click
+      const elements = svgRef.current?.querySelectorAll('.treemap-piece');
+      if (!elements) return;
+
+      elements.forEach((el) => {
+        // Get the D3 node's data
+        const d3Node = d3.select(el);
+        const nodeData = d3Node.datum();
+        if (nodeData?.data?.key === itemName) {
+          // Dispatch click event on this element
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        }
+      });
+    },
+  }), []);
 
   // const [data, setData] = useState([]);
   const [sum, setSum] = useState(-1); // or 'bar'
@@ -115,6 +135,22 @@ function Treemap({
     setSum(s);
     setGrowth(g);
   }, [nestedData, setCurrentSum, sum]);
+
+  useEffect(() => {
+    if (!svgRef.current) return;
+
+    d3.select(svgRef.current)
+      .selectAll('g.treemap-piece')
+      .select('rect.box')
+      .attr('stroke', (d) => {
+        if (!hoveredItemName) return 'black';
+        return d?.data?.key === hoveredItemName ? 'white' : 'black';
+      })
+      .attr('stroke-width', (d) => {
+        if (!hoveredItemName) return gutter;
+        return d?.data?.key === hoveredItemName ? gutter * 2 : gutter;
+      });
+  }, [hoveredItemName, gutter]);
 
   useEffect(() => {
     if (!svgRef.current) return;
@@ -298,8 +334,8 @@ function Treemap({
         const nodeGrowth = d?.GROWTH;
         const lastYear = d?.AMOUNT_LASTYEAR;
         const growthText = nodeGrowth != null ? `${(nodeGrowth * 100).toFixed(1)}%` : 'N/A';
-        const lastYearText = lastYear != null ? lastYear.toLocaleString() : 'N/A';
-        return `${d?.data?.key}<br>${d?.value?.toLocaleString?.()} บาท<br>ปีที่แล้ว: ${lastYearText} บาท<br>เติบโต: ${growthText}`;
+        const lastYearText = lastYear != null ? abbreviateNumber(lastYear) : 'N/A';
+        return `${d?.data?.key}<br>${abbreviateNumber(d?.value)}<br>ปีที่แล้ว: ${lastYearText}<br>เติบโต: ${growthText}`;
       });
 
     treemapPieceMerged.select('rect.box')
@@ -307,8 +343,14 @@ function Treemap({
       .duration(300)
       .attr('rx', 3)
       .style('fill', (d) => getNodeColor(d))
-      .attr('stroke', 'black')
-      .attr('stroke-width', gutter)
+      .attr('stroke', (d) => {
+        if (!hoveredItemName) return 'black';
+        return d?.data?.key === hoveredItemName ? 'white' : 'black';
+      })
+      .attr('stroke-width', (d) => {
+        if (!hoveredItemName) return gutter;
+        return d?.data?.key === hoveredItemName ? gutter * 2 : gutter;
+      })
       .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
       .attr('height', (d) => Math.max((d.y1 - d.y0) || 0, 0));
 
@@ -332,7 +374,7 @@ function Treemap({
       .attr('fill-opacity', 0.7)
       .attr('dominant-baseline', 'hanging')
       .attr('opacity', 1)
-      .text((d) => `${d.value.toLocaleString()} บาท`);
+      .text((d) => abbreviateNumber(d.value));
 
     treemapPieceMerged.select('text.text-growth')
       .attr('x', 5)
@@ -378,6 +420,7 @@ function Treemap({
     sumWindows,
     colorScale,
     getNodeColor,
+    hoveredItemName,
   ]);
 
   return (
@@ -406,9 +449,7 @@ function Treemap({
         </b>
         <br />
         <span style={{ opacity: 0.7 }}>
-          {sum.toLocaleString()}
-          {' '}
-          บาท
+          {abbreviateNumber(sum)}
           {growth != null && (
             <span
               style={{
@@ -479,4 +520,4 @@ function Treemap({
   );
 }
 
-export default Treemap;
+export default forwardRef(TreemapComponent);
