@@ -63,7 +63,6 @@ function PercentageChangeList({
   data,
   filters,
   hierarchyBy,
-  groupingAxis = 'MINISTRY',
   hoveredItemName = null,
   setHoveredItemName = () => { },
   onItemClick = () => { },
@@ -82,26 +81,15 @@ function PercentageChangeList({
 
     const activeFilters = filters[0] === 'all' ? filters.slice(1) : filters;
 
-    // Use alternate hierarchy when grouping by BUDGET_PLAN
-    let effectiveHierarchy = [...hierarchyBy];
-    if (groupingAxis === 'BUDGET_PLAN') {
-      effectiveHierarchy = [
-        'BUDGET_PLAN',
-        'MINISTRY',
-        'BUDGETARY_UNIT',
-        'OUTPUT_PROJECT',
-        'ITEM',
-      ];
-    }
-
+    // hierarchyBy already contains the effective hierarchy from parent
     // Determine the next hierarchy level to compare items at
-    const levelToCompare = Math.min(activeFilters.length, effectiveHierarchy.length - 1);
-    const compareField = effectiveHierarchy[levelToCompare];
+    const levelToCompare = Math.min(activeFilters.length, hierarchyBy.length - 1);
+    const compareField = hierarchyBy[levelToCompare];
 
     // Filter data: apply all current active filters
     let filtered = data;
     for (let i = 0; i < activeFilters.length; i++) {
-      const filterLevel = effectiveHierarchy[i];
+      const filterLevel = hierarchyBy[i];
       const filterValue = activeFilters[i];
       filtered = filtered.filter((d) => d[filterLevel] === filterValue);
     }
@@ -154,7 +142,7 @@ function PercentageChangeList({
       });
 
     return changes;
-  }, [data, filters, hierarchyBy, groupingAxis, sortMode]);
+  }, [data, filters, hierarchyBy, sortMode]);
 
   return (
     <Container>

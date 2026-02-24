@@ -94,6 +94,20 @@ function DataView({
   const [groupingAxis, setGroupingAxis] = useState('MINISTRY'); // 'MINISTRY' or 'BUDGET_PLAN'
   const treemapRef = useRef(null);
 
+  // Calculate effective hierarchy based on grouping axis
+  const effectiveHierarchy = useMemo(() => {
+    if (groupingAxis === 'BUDGET_PLAN') {
+      return [
+        'BUDGET_PLAN',
+        'MINISTRY',
+        'BUDGETARY_UNIT',
+        'OUTPUT_PROJECT',
+        'ITEM',
+      ];
+    }
+    return hierarchyBy;
+  }, [groupingAxis]);
+
   const filterDataByQuery = useCallback((datum, query) => {
     const searchLevels = [
       'MINISTRY',
@@ -165,7 +179,7 @@ function DataView({
         <button type="button" onClick={() => setDisplayMode('bar')}>bar</button> */}
 
           {filters.map((x, i) => (
-            <>
+            <React.Fragment key={filters.slice(0, i + 1).join('/')}>
               <button
                 type="button"
                 onClick={() => navigateTo(x, i)}
@@ -219,7 +233,7 @@ function DataView({
                 )}
               {i < filters.length - 1
                 && <span style={{ color: 'white', marginRight: 8 }}>&gt;</span>}
-            </>
+            </React.Fragment>
           ))}
           {/* {JSON.stringify(filters)} */}
         </div>
@@ -259,7 +273,7 @@ function DataView({
             data={filteredData}
             isLoading={isLoading}
             filters={filters}
-            hierarchyBy={hierarchyBy}
+            hierarchyBy={effectiveHierarchy}
             setFilters={setFilters}
             groupingAxis={groupingAxis}
             setCurrentSum={(x) => {
@@ -277,14 +291,12 @@ function DataView({
           <YearComparison
             data={filteredData}
             filters={filters}
-            hierarchyBy={hierarchyBy}
-            groupingAxis={groupingAxis}
+            hierarchyBy={effectiveHierarchy}
           />
           <PercentageChangeList
             data={filteredData}
             filters={filters}
-            hierarchyBy={hierarchyBy}
-            groupingAxis={groupingAxis}
+            hierarchyBy={effectiveHierarchy}
             hoveredItemName={hoveredItemName}
             setHoveredItemName={setHoveredItemName}
             onItemClick={handlePercentageListClick}

@@ -91,30 +91,11 @@ function TreemapComponent({
   const nestedData = useMemo(() => {
     console.log('filters', filters);
 
-    // Create alternate hierarchy when using non-MINISTRY grouping at root
-    // For BUDGET_PLAN: [BUDGET_PLAN, MINISTRY, BUDGETARY_UNIT, OUTPUT_PROJECT, ITEM]
-    const isRootLevel = filters[0] === 'all' && filters.length === 1;
-    const usingAlternateGrouping = isRootLevel && groupingAxis !== 'MINISTRY';
-
-    let effectiveHierarchy = [...hierarchyBy];
-    if (groupingAxis === 'BUDGET_PLAN') {
-      // Swap BUDGET_PLAN to front, followed by MINISTRY, then rest
-      effectiveHierarchy = [
-        'BUDGET_PLAN',
-        'MINISTRY',
-        'BUDGETARY_UNIT',
-        'OUTPUT_PROJECT',
-        'ITEM',
-      ];
-    }
-
+    // hierarchyBy already contains the effective hierarchy from parent
     let out = nest();
     // eslint-disable-next-line guard-for-in, no-restricted-syntax
     for (const i in filters) {
-      const hierarchyToUse = usingAlternateGrouping || (groupingAxis === 'BUDGET_PLAN' && filters.length > 1)
-        ? effectiveHierarchy
-        : hierarchyBy;
-      out = out.key((d) => d[hierarchyToUse[i]]);
+      out = out.key((d) => d[hierarchyBy[i]]);
     }
 
     const nested = out
@@ -139,7 +120,7 @@ function TreemapComponent({
     console.log('indata', inData);
 
     return inData;
-  }, [data, filters, hierarchyBy, groupingAxis]);
+  }, [data, filters, hierarchyBy]);
 
   const [growth, setGrowth] = useState(null);
 
