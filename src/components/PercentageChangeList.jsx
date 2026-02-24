@@ -85,8 +85,8 @@ function PercentageChangeList({ data, filters, hierarchyBy }) {
     // Otherwise, we're comparing by the next level's children
     filtered.forEach((d) => {
       const groupKey = d[compareField];
-      const amount69 = parseFloat(d.AMOUNT_69?.replace(/,/g, '') || '0') || 0;
-      const amount68 = parseFloat(d.AMOUNT_68?.replace(/,/g, '') || '0') || 0;
+      const amount69 = parseFloat(d.AMOUNT_2569?.replace(/,/g, '') || '0') || 0;
+      const amount68 = parseFloat(d.AMOUNT_2568?.replace(/,/g, '') || '0') || 0;
 
       if (!groups.has(groupKey)) {
         groups.set(groupKey, { amount69: 0, amount68: 0 });
@@ -139,7 +139,7 @@ function PercentageChangeList({ data, filters, hierarchyBy }) {
           <ListItem key={item.name}>
             <Name title={item.name}>{item.name.length > 25 ? `${item.name.substring(0, 22)}...` : item.name}</Name>
             <PercentChange growth={item.growth}>
-              {item.isNew ? 'รายการใหม่' : `${(item.growth * 100).toFixed(1)}%`}
+              {item.isNew ? 'ใหม่' : `${(item.growth * 100).toFixed(1)}%`}
             </PercentChange>
           </ListItem>
         ))}

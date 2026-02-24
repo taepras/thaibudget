@@ -92,15 +92,20 @@ function YearComparison({ data, filters, hierarchyBy }) {
     const years = {};
 
     filtered.forEach((d) => {
-      // For year 2026 (69)
-      const amount69 = parseFloat(d.AMOUNT_69?.replace(/,/g, '') || '0') || 0;
-      if (!years['2026']) years['2026'] = 0;
-      years['2026'] += amount69;
+      // Extract amounts for all years
+      const yearsToProcess = [
+        { key: '2565', column: 'AMOUNT_2565' },
+        { key: '2566', column: 'AMOUNT_2566' },
+        { key: '2567', column: 'AMOUNT_2567' },
+        { key: '2568', column: 'AMOUNT_2568' },
+        { key: '2569', column: 'AMOUNT_2569' },
+      ];
 
-      // For year 2025 (68)
-      const amount68 = parseFloat(d.AMOUNT_68?.replace(/,/g, '') || '0') || 0;
-      if (!years['2025']) years['2025'] = 0;
-      years['2025'] += amount68;
+      yearsToProcess.forEach(({ key, column }) => {
+        const amount = parseFloat(d[column]?.replace(/,/g, '') || '0') || 0;
+        if (!years[key]) years[key] = 0;
+        years[key] += amount;
+      });
     });
 
     return Object.entries(years)
