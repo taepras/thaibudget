@@ -189,8 +189,6 @@ function PercentageChangeList({
               displayColor = '#00ac00';
             }
 
-            const showSparkline = sortMode !== 'budget';
-
             return (
               <ListItem
                 key={item.name}
@@ -208,9 +206,7 @@ function PercentageChangeList({
                   {item.name}
                 </Name>
                 <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                  {showSparkline && (
-                    <Sparkline amounts={item.amounts} years={data?.years} uid={item.id} />
-                  )}
+                  <Sparkline amounts={item.amounts} years={data?.years} uid={item.id} />
                   <PercentChange growth={item.growth} style={{ color: displayColor }}>
                     {displayValue}
                   </PercentChange>
