@@ -455,7 +455,7 @@ function TreemapComponent({
           </b>
           <br />
           <span style={{ opacity: 0.7 }}>
-            {abbreviateNumber(sum)}
+            {sum}
             {growth != null && (
               <span
                 style={{
