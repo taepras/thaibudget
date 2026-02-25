@@ -87,6 +87,15 @@ const ActionButton = styled.button`
   justify-content: center;
 `;
 
+const DEFAULT_HIERARCHY = [
+  'ministry',
+  'budgetary_unit',
+  'budget_plan',
+  'output',
+  'category',
+  // 'item'
+];
+
 function App() {
   const [data, setData] = useState([]);
   const [isLoading, setLoading] = useState(true);
@@ -94,12 +103,71 @@ function App() {
   const [filters, setFilters] = useState(['all']);
   const [sumWindows, setSumWindows] = useState([0, 0]);
 
-  useEffect(() => {
-    d3.csv(`${process.env.PUBLIC_URL}/data-all-years.csv`).then((d) => {
-      setData(d);
-      setLoading(false);
+  const [currentYear, setCurrentYear] = useState(2569);
+  const [navigation, setNavigation] = useState([{ key: null, displayName: 'รวมทุกหน่วยงาน', groupBy: 'ministry' }]);
+
+  const navigateTo = useCallback((key, displayName = null, groupBy = null) => {
+    if (displayName === null) displayName = key;
+    if (groupBy === null) {
+      const usedGroupBys = navigation.map((x) => x.groupBy);
+      groupBy = DEFAULT_HIERARCHY.find((x) => !usedGroupBys.includes(x));
+    }
+    console.log('😡 navigating to', key, groupBy);
+    setNavigation([...navigation, { key, groupBy, displayName }]);
+  }, [navigation, setNavigation]);
+
+  const popNavigationToLevel = useCallback((n) => {
+    console.log('😡 pop navigation to level', n, navigation, navigation.slice(0, n + 1));
+    setNavigation(navigation.slice(0, n + 1));
+  }, [navigation, setNavigation]);
+
+  const setGroupBy = useCallback((groupBy) => {
+    setNavigation((nav) => {
+      const newNav = [...nav];
+      newNav[newNav.length - 1].groupBy = groupBy;
+      return newNav;
     });
   }, []);
+
+  useEffect(() => {
+    console.log('🗺️ navigation updated', navigation);
+    const fetchData = async () => {
+      const apiEndpoint = `${process.env.REACT_APP_API_URL}/api/breakdown`;
+      const params = {
+        year: currentYear,
+        group: navigation[navigation.length - 1].groupBy,
+      };
+      for (let i = 0; i < navigation.length - 1; i++) {
+        if (navigation[i].groupBy && navigation[i + 1].key) {
+          const groupByCamelCase = navigation[i].groupBy
+            .split('_')
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join('');
+          console.log('groupByCamelCase', groupByCamelCase, navigation[i + 1].key);
+          params[`filter${groupByCamelCase}Id`] = navigation[i + 1].key;
+        }
+      }
+      // if (navigation.length > 1) { params.filterMinistryId = navigation[navigation.length - 1].key; }
+
+      console.log('🔍 fetching data with params', params);
+
+      const url = new URL(apiEndpoint);
+      url.search = new URLSearchParams(params).toString();
+
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('API error');
+      const result = await response.json();
+      console.log('✅ api data loaded', result);
+      setData(result);
+      setLoading(false);
+    };
+    fetchData();
+
+    // d3.csv(`${process.env.PUBLIC_URL}/data-all-years.csv`).then((d) => {
+    //   setData(d);
+    //   setLoading(false);
+    // });
+  }, [currentYear, navigation]);
 
   const setSumWindowsIdx = (i, value) => {
     const temp = [...sumWindows];
@@ -114,48 +182,48 @@ function App() {
     return sumWindows.filter((x) => mx === x).length > 1;
   }, [sumWindows]);
 
-  const preprocessedData = useMemo(() => data
-    .map((d) => {
-      const amountThisYear = parseFloat(d.AMOUNT_2569.replace(/,/g, '')) || 0;
-      const amountLastYear = parseFloat(d.AMOUNT_2568.replace(/,/g, '')) || 0;
-      return {
-        ...d,
-        AMOUNT: amountThisYear,
-        AMOUNT_LASTYEAR: amountLastYear,
-        DIFF: amountThisYear - amountLastYear,
-        GROWTH: amountLastYear > 0 ? (amountThisYear - amountLastYear) / amountLastYear : Infinity,
-        OUTPUT_PROJECT: (d.OUTPUT || d.PROJECT) ? (d.OUTPUT + d.PROJECT) : 'ไม่ระบุโครงการ/ผลผลิต',
-        MINISTRY: d.MINISTRY.replace(/\([0-9]+\)$/, '').trim(),
-        ITEM: [
-          d.ITEM_DESCRIPTION,
-          d.CATEGORY_LV2,
-          d.CATEGORY_LV3,
-          d.CATEGORY_LV4,
-          d.CATEGORY_LV5,
-          d.CATEGORY_LV6,
-        ]
-          .filter((x) => x)
-          .join(' - '),
-      };
-    }), [data]);
+  // const preprocessedData = useMemo(() => data
+  //   .map((d) => {
+  //     const amountThisYear = parseFloat(d.AMOUNT_2569.replace(/,/g, '')) || 0;
+  //     const amountLastYear = parseFloat(d.AMOUNT_2568.replace(/,/g, '')) || 0;
+  //     return {
+  //       ...d,
+  //       AMOUNT: amountThisYear,
+  //       AMOUNT_LASTYEAR: amountLastYear,
+  //       DIFF: amountThisYear - amountLastYear,
+  //       GROWTH: amountLastYear > 0 ? (amountThisYear - amountLastYear) / amountLastYear : Infinity,
+  //       OUTPUT_PROJECT: (d.OUTPUT || d.PROJECT) ? (d.OUTPUT + d.PROJECT) : 'ไม่ระบุโครงการ/ผลผลิต',
+  //       MINISTRY: d.MINISTRY.replace(/\([0-9]+\)$/, '').trim(),
+  //       ITEM: [
+  //         d.ITEM_DESCRIPTION,
+  //         d.CATEGORY_LV2,
+  //         d.CATEGORY_LV3,
+  //         d.CATEGORY_LV4,
+  //         d.CATEGORY_LV5,
+  //         d.CATEGORY_LV6,
+  //       ]
+  //         .filter((x) => x)
+  //         .join(' - '),
+  //     };
+  //   }), [data]);
 
-  const location = useLocation();
-  const history = useHistory();
+  // const location = useLocation();
+  // const history = useHistory();
 
-  useEffect(() => {
-    const f = location.pathname.split('/').slice(1);
-    console.log('f', f, f.length > 0 && f[0] ? f : ['all']);
-    setFilters(f.length > 0 && f[0] ? f : ['all']);
-  }, [location]);
+  // useEffect(() => {
+  //   const f = location.pathname.split('/').slice(1);
+  //   console.log('f', f, f.length > 0 && f[0] ? f : ['all']);
+  //   setFilters(f.length > 0 && f[0] ? f : ['all']);
+  // }, [location]);
 
-  const navigateTo = (x, i) => {
-    console.log(x, i);
-    const temp = [...filters];
-    temp.splice(i + 1);
-    // setFilters(temp);
-    console.log('temp', temp);
-    history.push(`/${temp.join('/')}`);
-  };
+  // const navigateTo = (x, i) => {
+  //   console.log(x, i);
+  //   const temp = [...filters];
+  //   temp.splice(i + 1);
+  //   // setFilters(temp);
+  //   console.log('temp', temp);
+  //   history.push(`/${temp.join('/')}`);
+  // };
 
   return (
     <FullView>
@@ -166,7 +234,7 @@ function App() {
         }}
         >
           <DataView
-            data={preprocessedData}
+            data={data}
             isLoading={isLoading}
             fullValue={maxSumValue}
             setCurrentSum={(s) => {
@@ -176,6 +244,11 @@ function App() {
             isMultipleMaxSum={isMultipleMaxSum}
             sumWindows={sumWindows}
             index={0}
+            navigation={navigation}
+            navigateTo={navigateTo}
+            popNavigationToLevel={popNavigationToLevel}
+            setGroupBy={setGroupBy}
+            defaultHierarchy={DEFAULT_HIERARCHY}
           />
         </div>
         {isCompareView && (
@@ -185,7 +258,7 @@ function App() {
           }}
           >
             <DataView
-              data={preprocessedData}
+              data={data}
               isLoading={isLoading}
               fullValue={maxSumValue}
               setCurrentSum={(s) => {

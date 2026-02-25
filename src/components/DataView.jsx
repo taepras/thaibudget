@@ -72,81 +72,86 @@ const hierarchyBy = [
 ];
 
 const THAI_NAME = {
-  MINISTRY: 'กระทรวงหรือเทียบเท่า',
-  BUDGETARY_UNIT: 'หน่วยรับงบฯ',
-  BUDGET_PLAN: 'แผนงาน',
-  OUTPUT_PROJECT: 'ผลผลิต/โครงการ',
-  ITEM: 'รายการ',
-  CATEGORY_LV1: 'ประเภทงบ',
-  CATEGORY_LV2: 'หมวดรายจ่าย',
-  CATEGORY_LV3: 'ประเภทรายจ่าย',
-  CATEGORY_LV4: 'รายการย่อย',
+  ministry: 'กระทรวงหรือเทียบเท่า',
+  budgetary_unit: 'หน่วยรับงบฯ',
+  budget_plan: 'แผนงาน',
+  output_project: 'ผลผลิต/โครงการ',
+  item: 'รายการ',
+  category_lv1: 'ประเภทงบ',
+  category_lv2: 'หมวดรายจ่าย',
+  category_lv3: 'ประเภทรายจ่าย',
+  category_lv4: 'รายการย่อย',
 };
 
 function DataView({
   data,
   isLoading,
   setCurrentSum = (sum) => { },
-  fullValue = -1,
-  index = 0,
-  isMultipleMaxSum = false,
-  sumWindows = [],
+  // fullValue = -1,
+  // index = 0,
+  // isMultipleMaxSum = false,
+  // sumWindows = [],
+  navigation = [],
+  navigateTo = (key, groupBy = null) => { },
+  popNavigationToLevel = (n) => { },
+  setGroupBy = (axis) => { },
+  defaultHierarchy = [],
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState(['all']);
   const [hoveredItemName, setHoveredItemName] = useState(null);
-  const [groupingAxis, setGroupingAxis] = useState('MINISTRY'); // 'MINISTRY' or 'BUDGET_PLAN'
+  // const [groupingAxis, setGroupingAxis] = useState('MINISTRY'); // 'MINISTRY' or 'BUDGET_PLAN'
   const treemapRef = useRef(null);
 
   // Calculate effective hierarchy based on grouping axis
-  const effectiveHierarchy = useMemo(() => {
-    if (groupingAxis === 'BUDGET_PLAN') {
-      return [
-        'BUDGET_PLAN',
-        'MINISTRY',
-        'BUDGETARY_UNIT',
-        'OUTPUT_PROJECT',
-        'ITEM',
-      ];
-    }
-    if (groupingAxis === 'CATEGORY_LV1') {
-      return [
-        'CATEGORY_LV1',
-        'MINISTRY',
-        'BUDGETARY_UNIT',
-        'OUTPUT_PROJECT',
-        'ITEM',
-      ];
-    }
-    if (groupingAxis === 'CATEGORY_LV2') {
-      return [
-        'CATEGORY_LV2',
-        'MINISTRY',
-        'BUDGETARY_UNIT',
-        'OUTPUT_PROJECT',
-        'ITEM',
-      ];
-    }
-    if (groupingAxis === 'CATEGORY_LV3') {
-      return [
-        'CATEGORY_LV3',
-        'MINISTRY',
-        'BUDGETARY_UNIT',
-        'OUTPUT_PROJECT',
-        'ITEM',
-      ];
-    }
-    if (groupingAxis === 'CATEGORY_LV4') {
-      return [
-        'CATEGORY_LV4',
-        'MINISTRY',
-        'BUDGETARY_UNIT',
-        'OUTPUT_PROJECT',
-        'ITEM',
-      ];
-    }
-    return hierarchyBy;
-  }, [groupingAxis]);
+  // const effectiveHierarchy = useMemo(() => {
+  //   if (groupingAxis === 'BUDGET_PLAN') {
+  //     return [
+  //       'BUDGET_PLAN',
+  //       'MINISTRY',
+  //       'BUDGETARY_UNIT',
+  //       'OUTPUT_PROJECT',
+  //       'ITEM',
+  //     ];
+  //   }
+  //   if (groupingAxis === 'CATEGORY_LV1') {
+  //     return [
+  //       'CATEGORY_LV1',
+  //       'MINISTRY',
+  //       'BUDGETARY_UNIT',
+  //       'OUTPUT_PROJECT',
+  //       'ITEM',
+  //     ];
+  //   }
+  //   if (groupingAxis === 'CATEGORY_LV2') {
+  //     return [
+  //       'CATEGORY_LV2',
+  //       'MINISTRY',
+  //       'BUDGETARY_UNIT',
+  //       'OUTPUT_PROJECT',
+  //       'ITEM',
+  //     ];
+  //   }
+  //   if (groupingAxis === 'CATEGORY_LV3') {
+  //     return [
+  //       'CATEGORY_LV3',
+  //       'MINISTRY',
+  //       'BUDGETARY_UNIT',
+  //       'OUTPUT_PROJECT',
+  //       'ITEM',
+  //     ];
+  //   }
+  //   if (groupingAxis === 'CATEGORY_LV4') {
+  //     return [
+  //       'CATEGORY_LV4',
+  //       'MINISTRY',
+  //       'BUDGETARY_UNIT',
+  //       'OUTPUT_PROJECT',
+  //       'ITEM',
+  //     ];
+  //   }
+  //   return hierarchyBy;
+  // }, [groupingAxis]);
 
   const filterDataByQuery = useCallback((datum, query) => {
     const searchLevels = [
@@ -160,34 +165,41 @@ function DataView({
     return false;
   }, []);
 
-  const filteredData = useMemo(
-    () => data.filter((d) => filterDataByQuery(d, searchQuery)),
-    [data, filterDataByQuery, searchQuery],
-  );
+  // const filteredData = useMemo(
+  //   () => data.filter((d) => filterDataByQuery(d, searchQuery)),
+  //   [data, filterDataByQuery, searchQuery],
+  // );
 
   const location = useLocation();
   const history = useHistory();
 
-  useEffect(() => {
-    const f = location.pathname.split('/').slice(1);
-    console.log('f', f, f.length > 0 && f[0] ? f : ['all']);
-    setFilters(f.length > 0 && f[0] ? f : ['all']);
-  }, [location]);
+  // useEffect(() => {
+  //   const f = location.pathname.split('/').slice(1);
+  //   console.log('f', f, f.length > 0 && f[0] ? f : ['all']);
+  //   setFilters(f.length > 0 && f[0] ? f : ['all']);
+  // }, [location]);
 
-  const navigateTo = (x, i) => {
-    console.log(x, i);
-    const temp = [...filters];
-    temp.splice(i + 1);
-    // setFilters(temp);
-    console.log('temp', temp);
-    setFilters(temp);
-    // history.push(`/${temp.join('/')}`);
-  };
+  // const navigateTo = (x, i) => {
+  //   console.log(x, i);
+  //   const temp = [...filters];
+  //   temp.splice(i + 1);
+  //   // setFilters(temp);
+  //   console.log('temp', temp);
+  //   setFilters(temp);
+  //   // history.push(`/${temp.join('/')}`);
+  // };
 
   const handlePercentageListClick = useCallback((itemName) => {
     // Trigger the actual treemap click to get existing transitions
     treemapRef.current?.triggerItemClick(itemName);
   }, []);
+
+  const availableGroupByOptions = useMemo(() => {
+    const usedGroupBys = navigation.map((x) => x.groupBy);
+    const remainingGroupBys = defaultHierarchy.filter((x) => !usedGroupBys.includes(x));
+    console.log('availableGroupByOptions', navigation, usedGroupBys, remainingGroupBys);
+    return remainingGroupBys.map((x) => ({ value: x, label: THAI_NAME[x] || x }));
+  }, [navigation, defaultHierarchy]);
 
   return (
     <FullView>
@@ -218,11 +230,13 @@ function DataView({
           {/* <button type="button" onClick={() => setDisplayMode('treemap')}>treemap</button>
         <button type="button" onClick={() => setDisplayMode('bar')}>bar</button> */}
 
-          {filters.map((x, i) => (
-            <React.Fragment key={filters.slice(0, i + 1).join('/')}>
+          {navigation.map((x, i) => (
+            <React.Fragment key={navigation.slice(0, i + 1).map((n) => n.key).join('/')}>
               <button
                 type="button"
-                onClick={() => navigateTo(x, i)}
+                onClick={() => {
+                  popNavigationToLevel(i);
+                }}
                 style={{
                   marginRight: 8,
                   backgroundColor: 'transparent',
@@ -232,50 +246,39 @@ function DataView({
                   textAlign: 'left',
                 }}
               >
-                <small style={{ opacity: '0.4', whiteSpace: 'nowrap' }}>{i > 0 && THAI_NAME[hierarchyBy[i - 1]]}</small>
+                <small style={{ opacity: 0.6, whiteSpace: 'nowrap' }}>
+                  {i > 0 && THAI_NAME[navigation[i - 1].groupBy]}
+                </small>
                 {i > 0 && <br />}
-                <span style={{ fontFamily: 'inherit', textDecoration: i < filters.length - 1 ? 'underline' : 'none', whiteSpace: 'nowrap' }}>
+                <span style={{ fontFamily: 'inherit', textDecoration: i < navigation.length - 1 ? 'underline' : 'none', whiteSpace: 'nowrap' }}>
                   {i === 0
                     ? (
                       searchQuery === ''
                         ? 'หน่วยงานทั้งหมด'
                         : `หน่วยงานทั้งหมดที่ชื่อมีคำว่า "${searchQuery}"`
                     )
-                    : x.length < 20 ? x : `${x.substr(0, 20)}...`}
+                    : x.displayName.length < 20 ? x.displayName : `${x.displayName.substr(0, 20)}...`}
                 </span>
               </button>
-              {i === filters.length - 1
+              {i === navigation.length - 1
                 && (
                   <>
-                    <small style={{ color: 'white', marginRight: 8, opacity: '0.4' }}>
+                    <small style={{ color: 'white', marginRight: 8, opacity: 0.6 }}>
                       :
                     </small>
-                    {filters[0] === 'all' && filters.length === 1 ? (
-                      <div style={{ display: 'inline-block' }}>
-                        <DropdownLink
-                          label={`แบ่งกลุ่มตาม ${THAI_NAME[groupingAxis] || groupingAxis}`}
-                          options={[
-                            { value: 'MINISTRY', label: 'กระทรวง' },
-                            { value: 'BUDGET_PLAN', label: 'แผนงาน' },
-                            { value: 'CATEGORY_LV1', label: 'ประเภทงบ' },
-                            { value: 'CATEGORY_LV2', label: 'หมวดรายจ่าย' },
-                            { value: 'CATEGORY_LV3', label: 'ประเภทรายจ่าย' },
-                            { value: 'CATEGORY_LV4', label: 'รายการย่อย' },
-                          ]}
-                          value={groupingAxis}
-                          onChange={setGroupingAxis}
-                        />
-                      </div>
-                    ) : (
-                      <small style={{ color: 'white', marginRight: 8, opacity: '0.4' }}>
-                        แบ่งตาม
-                        {' '}
-                        {THAI_NAME[hierarchyBy[i]]}
-                      </small>
-                    )}
+                    <div style={{ display: 'inline-block', opacity: 0.6 }}>
+                      แบ่งตาม
+                      {' '}
+                      <DropdownLink
+                        label={`${THAI_NAME[navigation[i].groupBy] || navigation[i].groupBy}`}
+                        options={availableGroupByOptions}
+                        value={navigation[i].groupBy}
+                        onChange={setGroupBy}
+                      />
+                    </div>
                   </>
                 )}
-              {i < filters.length - 1
+              {i < navigation.length - 1
                 && <span style={{ color: 'white', marginRight: 8 }}>&gt;</span>}
             </React.Fragment>
           ))}
@@ -314,12 +317,12 @@ function DataView({
         >
           <Treemap
             ref={treemapRef}
-            data={filteredData}
+            data={data}
             isLoading={isLoading}
             filters={filters}
-            hierarchyBy={effectiveHierarchy}
+            // hierarchyBy={effectiveHierarchy}
             setFilters={setFilters}
-            groupingAxis={groupingAxis}
+            // groupingAxis={groupingAxis}
             setCurrentSum={(x) => {
               // console.log('!!setting sum', x, setCurrentSum);
               setCurrentSum(x);
@@ -329,9 +332,10 @@ function DataView({
             isMultipleMaxSum={isMultipleMaxSum}
             sumWindows={sumWindows}
             hoveredItemName={hoveredItemName}
+            navigateTo={navigateTo}
           />
         </div>
-        <RightSidebar>
+        {/* <RightSidebar>
           <YearComparison
             data={filteredData}
             filters={filters}
@@ -345,7 +349,7 @@ function DataView({
             setHoveredItemName={setHoveredItemName}
             onItemClick={handlePercentageListClick}
           />
-        </RightSidebar>
+        </RightSidebar> */}
       </div>
     </FullView>
   );

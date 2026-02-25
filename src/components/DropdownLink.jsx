@@ -4,7 +4,7 @@ import styled from 'styled-components';
 const Toggle = styled.button`
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.5);
+  color: inherit;
   cursor: pointer;
   padding: 0;
   font-family: inherit;
@@ -14,7 +14,7 @@ const Toggle = styled.button`
   text-decoration: underline;
 
   &:hover {
-    color: rgba(255, 255, 255, 0.9);
+    color: rgba(255, 255, 255, 0.8);
   }
 
   &::after {

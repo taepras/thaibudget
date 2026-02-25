@@ -86,14 +86,41 @@ app.get("/api/breakdown", async (req, res) => {
       "join dim_category_path cp on f.category_id = cp.descendant_id",
   };
 
-  joins.add(groupConfig.join);
+  const addJoin = (sql) => {
+    if (!joins.has(sql)) {
+      joins.add(sql);
+    }
+  };
+
+  const ensureMinistryJoin = () => {
+    if (joins.has(joinMap.ministry)) {
+      return;
+    }
+    if (joins.has(joinMap.budgetary_unit)) {
+      addJoin("join dim_ministry m on bu.ministry_id = m.id");
+      return;
+    }
+    addJoin(joinMap.ministry);
+  };
+
+  const ensureBudgetaryUnitJoin = () => {
+    if (joins.has(joinMap.budgetary_unit)) {
+      return;
+    }
+    if (joins.has(joinMap.ministry)) {
+      return;
+    }
+    addJoin(joinMap.budgetary_unit);
+  };
+
+  addJoin(groupConfig.join);
 
   const filterMinistryId = parseId(req.query.filterMinistryId);
   if (req.query.filterMinistryId && filterMinistryId === null) {
     return res.status(400).json({ error: "filterMinistryId must be an integer" });
   }
   if (filterMinistryId !== null) {
-    joins.add(joinMap.ministry);
+    ensureMinistryJoin();
     params.push(filterMinistryId);
     conditions.push(`m.id = $${params.length}`);
   }
@@ -105,7 +132,7 @@ app.get("/api/breakdown", async (req, res) => {
       .json({ error: "filterBudgetaryUnitId must be an integer" });
   }
   if (filterBudgetaryUnitId !== null) {
-    joins.add(joinMap.budgetary_unit);
+    ensureBudgetaryUnitJoin();
     params.push(filterBudgetaryUnitId);
     conditions.push(`bu.id = $${params.length}`);
   }

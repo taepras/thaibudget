@@ -3,20 +3,11 @@ import React, {
 } from 'react';
 
 import * as d3 from 'd3';
-import { nest } from 'd3-collection';
 import useDimensions from 'react-cool-dimensions';
 import ReactTooltip from 'react-tooltip';
 import { useHistory, useLocation } from 'react-router-dom';
 import { abbreviateNumber } from '../utils/numberFormat';
 import FullView from './FullView';
-
-const THAI_NAME = {
-  MINISTRY: 'กระทรวงหรือเทียบเท่า',
-  BUDGETARY_UNIT: 'หน่วยรับงบฯ',
-  BUDGET_PLAN: 'แผนงาน',
-  OUTPUT_PROJECT: 'ผลผลิต/โครงการ',
-  ITEM: 'รายการ',
-};
 
 function TreemapComponent({
   data = [],
@@ -28,20 +19,18 @@ function TreemapComponent({
   hierarchyBy = [],
   groupingAxis = 'MINISTRY',
   setCurrentSum = (sum) => { },
-  fullValue = -1,
+  // fullValue = -1,
   index = 0,
-  isMultipleMaxSum = false,
+  // isMultipleMaxSum = false,
   sumWindows = [],
   hoveredItemName = null,
   colorScaleMaxValue = 0.3,
+  navigateTo = (key, displayName, groupBy) => { }
 }, ref) {
   const {
-    observe, unobserve, width, height, entry,
+    observe, width, height,
   } = useDimensions({
-    onResize: ({
-      /* eslint-disable-next-line no-shadow */
-      observe, unobserve, w, h, entr,
-    }) => {
+    onResize: ({ observe, unobserve }) => {
       unobserve();
       observe();
     },
@@ -50,6 +39,9 @@ function TreemapComponent({
   // const history = useHistory();
 
   const svgRef = useRef(null);
+  const navigateToRef = useRef(navigateTo);
+  useEffect(() => { navigateToRef.current = navigateTo; }, [navigateTo]);
+  const isNavigatingRef = useRef(false);
 
   useImperativeHandle(ref, () => ({
     triggerItemClick: (itemName) => {
@@ -71,7 +63,6 @@ function TreemapComponent({
 
   // const [data, setData] = useState([]);
   const [sum, setSum] = useState(-1); // or 'bar'
-  const [displayMode, setDisplayMode] = useState('treemap'); // or 'bar'
 
   const colorScale = useMemo(() => d3.scaleLinear()
     .domain([-colorScaleMaxValue, 0, colorScaleMaxValue]) // -50% to +50% growth
@@ -88,50 +79,36 @@ function TreemapComponent({
     return node?.GROWTH != null ? colorScale(node.GROWTH) : '#666666';
   }, [colorScale]);
 
-  const nestedData = useMemo(() => {
-    console.log('filters', filters);
+  const dataKey = useMemo(() => (
+    `${data?.group || groupingAxis}|${hierarchyBy.join('>')}|${filters.join('>')}`
+  ), [data?.group, groupingAxis, hierarchyBy, filters]);
 
-    // hierarchyBy already contains the effective hierarchy from parent
-    let out = nest();
-    // eslint-disable-next-line guard-for-in, no-restricted-syntax
-    for (const i in filters) {
-      out = out.key((d) => d[hierarchyBy[i]]);
-    }
-
-    const nested = out
-      .rollup((leaves) => ({
-        value: d3.sum(leaves, (l) => l.AMOUNT),
-        AMOUNT_LASTYEAR: d3.sum(leaves, (l) => l.AMOUNT_LASTYEAR),
-        GROWTH: d3.sum(leaves, (l) => l.AMOUNT_LASTYEAR) > 0
-          ? (d3.sum(leaves, (l) => l.AMOUNT) / d3.sum(leaves, (l) => l.AMOUNT_LASTYEAR)) - 1
-          : null,
-      }))
-      .entries(data);
-    let inData = {
-      key: 'root',
-      values: [{ key: 'all', values: nested }],
-    };
-
-    // eslint-disable-next-line guard-for-in, no-restricted-syntax
-    for (const i in filters) {
-      inData = inData?.values?.filter?.((d) => d.key === filters[i])[0];
-    }
-
-    console.log('indata', inData);
-
-    return inData;
-  }, [data, filters, hierarchyBy]);
+  // convert to d3 nest format: { key, values: [{ key, value }] }
+  const nestedData = useMemo(() => ({
+    key: null,
+    values: data.rows ? data.rows.map((r) => ({
+      key: r.name,
+      value: {
+        id: r.id,
+        value: +r.total_amount,
+        AMOUNT_LASTYEAR: +r.total_amount, // todo: use actual last year amount
+        GROWTH: 0,
+      },
+    })) : [],
+  }), [data]);
 
   const [growth, setGrowth] = useState(null);
 
   useEffect(() => {
-    const s = nestedData.values.reduce((a, b) => {
-      const val = b.value?.value !== undefined ? b.value.value : (b.value || 0);
-      return a + val;
-    }, 0);
+    // New data arrived — safe to allow D3 effect to run again
+    isNavigatingRef.current = false;
+  }, [data]);
+
+  useEffect(() => {
+    const s = nestedData.values.reduce((a, b) => a + (b.value?.value ?? b.value ?? 0), 0);
     const lastYearSum = nestedData.values.reduce((a, b) => a + (b.value?.AMOUNT_LASTYEAR || 0), 0);
     const g = lastYearSum > 0 ? (s / lastYearSum) - 1 : null;
-    console.log('sum', s, 'lastYear', lastYearSum, 'growth', g);
+    console.log('sum', s, 'lastYear', lastYearSum, 'growth', g, data);
     if (sum !== s) { setCurrentSum(s); }
     setSum(s);
     setGrowth(g);
@@ -155,19 +132,17 @@ function TreemapComponent({
 
   useEffect(() => {
     if (!svgRef.current) return;
+    // While a click-zoom is in flight, don't touch the DOM —
+    // let the zoom animation hold until new data arrives.
+    if (isNavigatingRef.current) return;
 
-    console.log('fullVal', fullValue);
-    console.log('nested', nestedData);
     const svgHeight = svgRef.current.clientHeight;
-    console.log(svgHeight);
+
+    const getValue = (d) => d?.value?.value ?? d?.value ?? 0;
 
     const root = d3.hierarchy(nestedData, (d) => d?.values)
-      .sum((d) => (d?.value?.value !== undefined ? d.value.value : (d?.value || 0)))
-      .sort((a, b) => {
-        const valA = a?.value?.value !== undefined ? a.value.value : (a?.value || 0);
-        const valB = b?.value?.value !== undefined ? b.value.value : (b?.value || 0);
-        return valB - valA;
-      })
+      .sum((d) => getValue(d))
+      .sort((a, b) => getValue(b.data) - getValue(a.data))
       // eslint-disable-next-line no-param-reassign
       .each((d) => {
         if (d.data.value) {
@@ -178,21 +153,18 @@ function TreemapComponent({
         }
       });
 
-    const newSum = nestedData.values.reduce((a, b) => {
-      const val = b.value?.value !== undefined ? b.value.value : (b.value || 0);
-      return a + val;
-    }, 0);
+    const newSum = nestedData.values.reduce((a, b) => a + (b.value?.value ?? b.value ?? 0), 0);
 
-    const newSumWin = [...sumWindows];
-    const idx0 = newSumWin.indexOf(sum);
-    if (idx0 !== -1) {
-      newSumWin[idx0] = newSum;
-    }
-    const fullVal = d3.max(newSumWin);
+    // const newSumWin = [...sumWindows];
+    // const idx0 = newSumWin.indexOf(sum);
+    // if (idx0 !== -1) {
+    //   newSumWin[idx0] = newSum;
+    // }
+    // const fullVal = d3.max(newSumWin);
+    const fullVal = data.total;
     const treeFullArea = (width - 2 * padding) * (svgHeight - 2 * padding);
     const treeAspect = (width - 2 * padding) / (svgHeight - 2 * padding);
     const treeCurrentArea = (newSum / (fullVal || 1)) * treeFullArea;
-    console.log('sumw', index, sumWindows, newSumWin, sum, fullVal, newSum);
     const treeH = fullVal <= 0 ? svgHeight - 2 * padding : Math.sqrt(treeCurrentArea / treeAspect);
     const treeW = fullVal <= 0 ? width - 2 * padding : treeCurrentArea / treeH;
 
@@ -201,24 +173,20 @@ function TreemapComponent({
       .padding(0);
     // .round(true);
 
-    const nodes = treemap(root);
+    treemap(root);
 
     const svg = d3.select(svgRef.current).select('g.chart');
 
-    const barScale = d3.scaleLinear()
-      .domain([0, d3.max(root.leaves(), (d) => d.value)])
-      .range([0, width - 2 * padding]);
-
     const treemapPieceGroup = svg
       .selectAll('g.treemap-piece')
-      .data(root.leaves(), (d) => d?.data?.key);
+      .data(root.leaves(), (d) => `${dataKey}-${d?.data?.value?.id ?? d?.data?.key}`);
 
     const treemapPieceGroupEnter = treemapPieceGroup
       .enter()
       .append('g')
       .attr('class', 'treemap-piece')
-      .attr('id', (d) => `${d?.data?.key.replaceAll(/[ ()]/g, '')}-${index}`)
-      .style('mask', (d) => `url(#mask-${d?.data?.key.replaceAll(/[ ()]/g, '')}-${index})`)
+      .attr('id', (d) => `${d?.data?.key?.replaceAll(/[ ()]/g, '')}-${index}`)
+      .style('mask', (d) => `url(#mask-${d?.data?.key?.replaceAll(/[ ()]/g, '')}-${index})`)
       .attr('data-tip', (d) => {
         const itemGrowth = d?.GROWTH;
         const lastYear = d?.AMOUNT_LASTYEAR;
@@ -227,7 +195,6 @@ function TreemapComponent({
         return `${d?.data?.key}<br>${d?.value?.toLocaleString?.()} บาท<br>ปีที่แล้ว: ${lastYearText} บาท<br>เติบโต: ${growthText}`;
       })
       .attr('transform', (d) => `translate(${d.x0 || 0},${d.y0 || 0})`);
-    // .attr('opacity', 0);
 
     treemapPieceGroupEnter
       .append('rect')
@@ -236,15 +203,10 @@ function TreemapComponent({
       .style('fill', (d) => getNodeColor(d))
       .attr('width', (d) => (d.x1 - d.x0) || 0)
       .attr('height', (d) => (d.y1 - d.y0) || 0);
-    // .attr('x', d => d.x0)
-    // .attr('y', d => d.y0)
-    // .style('stroke', 'black')
-
-    // .style('fill', 'cyan');
 
     treemapPieceGroupEnter
       .append('mask')
-      .attr('id', (d) => `mask-${d?.data?.key.replaceAll(/[ ()]/g, '')}-${index}`)
+      .attr('id', (d) => `mask-${d?.data?.key?.replaceAll(/[ ()]/g, '')}-${index}`)
       .append('rect')
       .attr('class', 'mask')
       .attr('rx', 3)
@@ -274,23 +236,19 @@ function TreemapComponent({
 
     treemapPieceMerged
       .on('click', null)
-      .on('click', (e, d, el) => {
-        const newFilters = [...filters, d?.data?.key];
-        if (newFilters.length > hierarchyBy.length) return;
+      .on('click', (e, d) => {
+        // // for side-by-side view
+        // const newSumWindows = [...sumWindows];
+        // console.log('newSumWindows', newSumWindows);
+        // const idx = newSumWindows.indexOf(sum);
+        // if (idx !== -1) {
+        //   newSumWindows[idx] = d.value;
+        // }
+        // const newFullValue = d3.max(newSumWindows);
+        // console.log('newFullValue', newFullValue, d.value);
 
-        // const treeFullArea = (width - 2 * padding) * (svgHeight - 2 * padding);
-        // const treeAspect = (width - 2 * padding) / (svgHeight - 2 * padding);
-        // const treeCurrentArea = (sum / (fullValue || 1)) * treeFullArea;
-        const newSumWindows = [...sumWindows];
-        const idx = newSumWindows.indexOf(sum);
-        if (idx !== -1) {
-          newSumWindows[idx] = d.value;
-        }
-        const newFullValue = d3.max(newSumWindows);
-
-        // const newFullValue = sum === fullValue && !isMultipleMaxSum ? d.value : fullValue;
-        // const newArea = (d.value / (fullValue || 1)) * treeFullArea;
-        const newArea = (d.value / (newFullValue || 1)) * treeFullArea;
+        // const newArea = (d.value / (newFullValue || 1)) * treeFullArea;
+        const newArea = treeFullArea;
         const newH = Math.sqrt(newArea / treeAspect);
         const newW = newArea / newH;
 
@@ -299,7 +257,7 @@ function TreemapComponent({
         const sx = newW / (d.x1 - d.x0);
         const sy = newH / (d.y1 - d.y0);
 
-        console.log('prp', d3.select(this), e, d, el);
+        // console.log('prp', d3.select(this), e, d, el);
         // const sx = 0.43;
         // const sy = 1.05;
 
@@ -322,8 +280,9 @@ function TreemapComponent({
           .attr('width', (p) => Math.max(sx * (p.x1 - p.x0), 0))
           .attr('height', (p) => Math.max(sy * (p.y1 - p.y0), 0));
 
+        isNavigatingRef.current = true;
         setTimeout(() => {
-          setFilters(newFilters);
+          navigateToRef.current(d?.data?.value?.id, d?.data?.key);
           // history.push(`/${newFilters.join('/')}`);
         }, 300);
       })
@@ -391,37 +350,25 @@ function TreemapComponent({
 
     treemapPieceGroup.exit()
       .transition()
-      .delay(150)
+      .delay(300)
       .duration(600)
       .attr('opacity', 0)
       // .delay(300)
       .remove();
 
     ReactTooltip.rebuild();
-    console.log('rebuilding tooltip');
-
-    console.log('too small', root.leaves().filter((d) => (d.x1 - d.x0) * (d.y1 - d.y0) < 100));
-    console.log('too narrow', root.leaves().filter((d) => d.x1 - d.x0 < 20));
-    console.log('too short', root.leaves().filter((d) => d.y1 - d.y0 < 20));
   }, [
+    dataKey,
     svgRef,
     nestedData,
-    filters,
     width,
     height,
-    displayMode,
     padding,
     gutter,
-    hierarchyBy,
-    setFilters,
-    fullValue,
     sum,
     index,
-    isMultipleMaxSum,
     sumWindows,
-    colorScale,
     getNodeColor,
-    hoveredItemName,
   ]);
 
   return (
