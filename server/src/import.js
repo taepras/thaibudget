@@ -238,8 +238,7 @@ async function runImport() {
           "budget_plan_id, output_id, project_id, category_id, item_description,\n" +
           "fiscal_year, amount, obliged, debug_log\n" +
           ") values " +
-          values.join(", ") +
-          " on conflict (item_id) do nothing",
+          values.join(", "),
         params
       );
 
@@ -268,7 +267,10 @@ async function runImport() {
 
       rowCount += 1;
 
-      const ministryName = normalizeText(record.MINISTRY);
+      const ministryNameRaw = normalizeText(record.MINISTRY);
+      const ministryName = ministryNameRaw
+        ? ministryNameRaw.replace(/\([0-9]+\)$/, '').trim()
+        : null;
       const ministryId = await getOrCreateMinistry(
         client,
         ministryName,
@@ -325,12 +327,14 @@ async function runImport() {
         { year: 2569, amount: parseAmount(record.AMOUNT_2569) },
       ];
 
+      const rowKey = normalizeText(record.ITEM_ID) || `ROW_${rowCount}`;
+
       for (const { year, amount } of yearAmounts) {
         if (amount === null || amount === 0) {
           continue;
         }
         factRows.push([
-          `${normalizeText(record.ITEM_ID)}_${year}`,
+          `${rowKey}_${year}`,
           normalizeText(record.REF_DOC),
           parseInteger(record.REF_PAGE_NO),
           budgetaryUnitId,

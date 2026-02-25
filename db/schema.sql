@@ -67,7 +67,7 @@ create table dim_category_path (
 
 create table fact_budget_item (
   id bigserial primary key,
-  item_id text unique,
+  item_id text,
   ref_doc text,
   ref_page_no integer,
   budgetary_unit_id bigint references dim_budgetary_unit(id),
