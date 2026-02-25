@@ -51,6 +51,9 @@ const Name = styled.span`
 const PercentChange = styled.span`
   font-weight: bold;
   white-space: nowrap;
+  width: 46px;
+  text-align: right;
+  flex-shrink: 0;
   color: ${(props) => {
     if (props.growth > 0.05) return '#00ac00'; // Significant increase - green
     if (props.growth > 0) return '#88dd88'; // Small increase - light green
@@ -58,6 +61,41 @@ const PercentChange = styled.span`
     return '#cc0000'; // Significant decrease - red
   }};
 `;
+
+function Sparkline({ amounts, years, uid, width = 48, height = 14 }) {
+  if (!amounts || !years || years.length < 2) return null;
+  const sortedYears = [...years].sort((a, b) => a - b);
+  const values = sortedYears.map((y) => +(amounts[y] ?? 0));
+  const minVal = Math.min(...values);
+  const maxVal = Math.max(...values);
+  const range = maxVal - minVal || 1;
+  const pad = 1;
+  const id = `spark-${uid}`;
+
+  const toX = (i) => (i / (values.length - 1)) * width;
+  const toY = (v) => pad + (1 - (v - minVal) / range) * (height - pad * 2);
+
+  const points = values.map((v, i) => [toX(i), toY(v)]);
+  const linePath = points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const areaPath = `${linePath} L${width},${height} L0,${height} Z`;
+
+  return (
+    <svg
+      width={width}
+      height={height}
+      style={{ flexShrink: 0, marginRight: 6, alignSelf: 'center', overflow: 'visible' }}
+    >
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#00cc66" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="#00cc66" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill={`url(#${id})`} />
+      <path d={linePath} fill="none" stroke="#00cc66" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 function PercentageChangeList({
   data,
@@ -94,6 +132,7 @@ function PercentageChangeList({
         amountCurrent,
         amountPrev,
         diff: amountCurrent - amountPrev,
+        amounts: row.amounts,
       };
     }).sort((a, b) => {
       if (a.isNew && !b.isNew) return -1;
@@ -150,6 +189,8 @@ function PercentageChangeList({
               displayColor = '#00ac00';
             }
 
+            const showSparkline = sortMode !== 'budget';
+
             return (
               <ListItem
                 key={item.name}
@@ -166,9 +207,14 @@ function PercentageChangeList({
                 <Name title={item.name}>
                   {item.name}
                 </Name>
-                <PercentChange growth={item.growth} style={{ color: displayColor }}>
-                  {displayValue}
-                </PercentChange>
+                <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                  {showSparkline && (
+                    <Sparkline amounts={item.amounts} years={data?.years} uid={item.id} />
+                  )}
+                  <PercentChange growth={item.growth} style={{ color: displayColor }}>
+                    {displayValue}
+                  </PercentChange>
+                </div>
               </ListItem>
             );
           })}
