@@ -62,52 +62,13 @@ const BarValue = styled.div`
   color: white;
 `;
 
-function YearComparison({
-  data,
-  filters,
-  hierarchyBy,
-}) {
+function YearComparison({ data }) {
   const yearData = useMemo(() => {
-    if (!data || data.length === 0 || !filters || filters.length === 0) {
-      return [];
-    }
-
-    // hierarchyBy already contains the effective hierarchy from parent
-    // Build the filtering logic based on current filters
-    let filtered = data;
-    const activeFilters = filters[0] === 'all' ? filters.slice(1) : filters;
-
-    // Apply all active filters (if any)
-    for (let i = 0; i < activeFilters.length; i++) {
-      const filterLevel = hierarchyBy[i];
-      const filterValue = activeFilters[i];
-      filtered = filtered.filter((d) => d[filterLevel] === filterValue);
-    }
-
-    // Group by fiscal year and sum amounts
-    const years = {};
-
-    filtered.forEach((d) => {
-      // Extract amounts for all years
-      const yearsToProcess = [
-        { key: '2565', column: 'AMOUNT_2565' },
-        { key: '2566', column: 'AMOUNT_2566' },
-        { key: '2567', column: 'AMOUNT_2567' },
-        { key: '2568', column: 'AMOUNT_2568' },
-        { key: '2569', column: 'AMOUNT_2569' },
-      ];
-
-      yearsToProcess.forEach(({ key, column }) => {
-        const amount = parseFloat(d[column]?.replace(/,/g, '') || '0') || 0;
-        if (!years[key]) years[key] = 0;
-        years[key] += amount;
-      });
-    });
-
-    return Object.entries(years)
+    if (!data || !data.totals) return [];
+    return Object.entries(data.totals)
       .map(([year, amount]) => ({ year, amount }))
       .sort((a, b) => parseInt(a.year, 10) - parseInt(b.year, 10));
-  }, [data, filters, hierarchyBy]);
+  }, [data]);
 
   const maxAmount = useMemo(
     () => d3.max(yearData, (d) => d.amount) || 1,

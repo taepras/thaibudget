@@ -19,6 +19,7 @@ function TreemapComponent({
   hierarchyBy = [],
   groupingAxis = 'MINISTRY',
   setCurrentSum = (sum) => { },
+  title = 'รวมทุกหน่วยงาน',
   // fullValue = -1,
   index = 0,
   // isMultipleMaxSum = false,
@@ -84,18 +85,24 @@ function TreemapComponent({
   ), [data?.group, groupingAxis, hierarchyBy, filters]);
 
   // convert to d3 nest format: { key, values: [{ key, value }] }
-  const nestedData = useMemo(() => ({
-    key: null,
-    values: data.rows ? data.rows.map((r) => ({
-      key: r.name,
-      value: {
-        id: r.id,
-        value: +r.total_amount,
-        AMOUNT_LASTYEAR: +r.total_amount, // todo: use actual last year amount
-        GROWTH: 0,
-      },
-    })) : [],
-  }), [data]);
+  const nestedData = useMemo(() => {
+    const primaryYear = data.years?.[0];
+    const compareYear = data.years?.[1];
+    return {
+      key: null,
+      values: data.rows ? data.rows.map((r) => ({
+        key: r.name,
+        value: {
+          id: r.id,
+          value: +(r.amounts?.[primaryYear] ?? 0),
+          AMOUNT_LASTYEAR: +(r.amounts?.[compareYear] ?? 0),
+          GROWTH: r.amounts?.[compareYear] > 0
+            ? (r.amounts[primaryYear] / r.amounts[compareYear]) - 1
+            : null,
+        },
+      })) : [],
+    };
+  }, [data]);
 
   const [growth, setGrowth] = useState(null);
 
@@ -109,7 +116,8 @@ function TreemapComponent({
     const lastYearSum = nestedData.values.reduce((a, b) => a + (b.value?.AMOUNT_LASTYEAR || 0), 0);
     const g = lastYearSum > 0 ? (s / lastYearSum) - 1 : null;
     console.log('sum', s, 'lastYear', lastYearSum, 'growth', g, data);
-    if (sum !== s) { setCurrentSum(s); }
+    // Object.is handles NaN === NaN correctly (true), preventing an infinite loop
+    if (!Object.is(sum, s)) { setCurrentSum(s); }
     setSum(s);
     setGrowth(g);
   }, [nestedData, setCurrentSum, sum]);
@@ -161,7 +169,7 @@ function TreemapComponent({
     //   newSumWin[idx0] = newSum;
     // }
     // const fullVal = d3.max(newSumWin);
-    const fullVal = data.total;
+    const fullVal = data.totals?.[data.years?.[0]];
     const treeFullArea = (width - 2 * padding) * (svgHeight - 2 * padding);
     const treeAspect = (width - 2 * padding) / (svgHeight - 2 * padding);
     const treeCurrentArea = (newSum / (fullVal || 1)) * treeFullArea;
@@ -369,6 +377,8 @@ function TreemapComponent({
     index,
     sumWindows,
     getNodeColor,
+    data,
+    hoveredItemName,
   ]);
 
   return (
@@ -398,11 +408,11 @@ function TreemapComponent({
       >
         <div>
           <b style={{ whiteSpace: 'nowrap', fontSize: 16 }}>
-            {filters[filters.length - 1] === 'all' ? 'รวมทุกหน่วยงาน' : filters[filters.length - 1]}
+            {title}
           </b>
           <br />
           <span style={{ opacity: 0.7 }}>
-            {sum}
+            {sum.toLocaleString()} บาท
             {growth != null && (
               <span
                 style={{

@@ -51,7 +51,9 @@ const breakdownGroups = {
 };
 
 app.get("/api/breakdown", async (req, res) => {
-  const year = Number(req.query.year);
+  // Accept ?year=2569 (single) or ?year=2568&year=2569 (multiple)
+  const rawYears = Array.isArray(req.query.year) ? req.query.year : [req.query.year];
+  const years = rawYears.map(Number).filter(Number.isInteger);
   const group = req.query.group;
 
   const parseId = (value) => {
@@ -62,7 +64,7 @@ app.get("/api/breakdown", async (req, res) => {
     return Number.isInteger(parsed) ? parsed : null;
   };
 
-  if (!Number.isInteger(year)) {
+  if (years.length === 0) {
     return res.status(400).json({ error: "year is required" });
   }
 
@@ -71,8 +73,9 @@ app.get("/api/breakdown", async (req, res) => {
     return res.status(400).json({ error: "unsupported group" });
   }
 
-  const params = [year];
-  const conditions = ["f.fiscal_year = $1"];
+  const params = [...years];
+  const yearPlaceholders = years.map((_, i) => `$${i + 1}`).join(", ");
+  const conditions = [`f.fiscal_year in (${yearPlaceholders})`];
   const joins = new Set();
   const joinMap = {
     ministry:
@@ -184,22 +187,42 @@ app.get("/api/breakdown", async (req, res) => {
   const sql = `
     select
       ${groupConfig.select},
+      f.fiscal_year,
       sum(f.amount) as total_amount,
-      sum(f.amount) / nullif(sum(sum(f.amount)) over (), 0) as pct
+      sum(f.amount) / nullif(sum(sum(f.amount)) over (partition by f.fiscal_year), 0) as pct
     from fact_budget_item f
     ${[...joins].join(" ")}
     where ${conditions.join(" and ")}
-    group by ${groupConfig.groupBy}
-    order by total_amount desc
+    group by ${groupConfig.groupBy}, f.fiscal_year
+    order by f.fiscal_year, total_amount desc
   `;
 
   try {
     const result = await query(sql, params);
+
+    // Pivot flat (group, fiscal_year, amount) rows into { id, name, amounts: { year: amount } }
+    const rowMap = new Map();
+    const totals = {};
+    for (const row of result.rows) {
+      const yr = String(row.fiscal_year);
+      totals[yr] = (totals[yr] || 0) + Number(row.total_amount);
+
+      const key = row.id ?? row.name;
+      if (!rowMap.has(key)) {
+        // Copy all group-level fields (id, name, level, ...) except year/amount
+        const { fiscal_year, total_amount, pct, ...groupFields } = row;
+        rowMap.set(key, { ...groupFields, amounts: {}, pct: {} });
+      }
+      const entry = rowMap.get(key);
+      entry.amounts[yr] = Number(row.total_amount);
+      entry.pct[yr] = Number(row.pct);
+    }
+
     return res.json({
-      year,
+      years,
       group,
-      total: result.rows.reduce((sum, row) => sum + Number(row.total_amount), 0),
-      rows: result.rows,
+      totals,
+      rows: [...rowMap.values()],
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });

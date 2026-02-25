@@ -1,7 +1,6 @@
 import React, {
-  useCallback, useEffect, useMemo, useState, useRef,
+  useCallback, useMemo, useState, useRef,
 } from 'react';
-import * as d3 from 'd3';
 import styled from 'styled-components';
 import { useHistory, useLocation } from 'react-router-dom';
 import ReactTooltip from 'react-tooltip';
@@ -53,6 +52,15 @@ const CreditLink = styled.a`
     max-width: 64px;
   }
 `;
+
+const GROUPABLE_KEYS = [
+  'ministry',
+  'budget_plan',
+  'output',
+  'category',
+  // 'item'
+];
+
 
 const hierarchyBy = [
   'MINISTRY',
@@ -196,7 +204,8 @@ function DataView({
 
   const availableGroupByOptions = useMemo(() => {
     const usedGroupBys = navigation.map((x) => x.groupBy);
-    const remainingGroupBys = defaultHierarchy.filter((x) => !usedGroupBys.includes(x));
+    const remainingGroupBys = defaultHierarchy
+      .filter((x) => GROUPABLE_KEYS.includes(x) && !usedGroupBys.includes(x));
     console.log('availableGroupByOptions', navigation, usedGroupBys, remainingGroupBys);
     return remainingGroupBys.map((x) => ({ value: x, label: THAI_NAME[x] || x }));
   }, [navigation, defaultHierarchy]);
@@ -317,6 +326,7 @@ function DataView({
         >
           <Treemap
             ref={treemapRef}
+            title={navigation.length > 0 ? navigation[navigation.length - 1].displayName : 'รวมทุกหน่วยงาน'}
             data={data}
             isLoading={isLoading}
             filters={filters}
@@ -335,21 +345,17 @@ function DataView({
             navigateTo={navigateTo}
           />
         </div>
-        {/* <RightSidebar>
+        <RightSidebar>
           <YearComparison
-            data={filteredData}
-            filters={filters}
-            hierarchyBy={effectiveHierarchy}
+            data={data}
           />
           <PercentageChangeList
-            data={filteredData}
-            filters={filters}
-            hierarchyBy={effectiveHierarchy}
+            data={data}
             hoveredItemName={hoveredItemName}
             setHoveredItemName={setHoveredItemName}
             onItemClick={handlePercentageListClick}
           />
-        </RightSidebar> */}
+        </RightSidebar>
       </div>
     </FullView>
   );

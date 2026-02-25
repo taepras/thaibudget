@@ -93,7 +93,7 @@ const DEFAULT_HIERARCHY = [
   'budget_plan',
   'output',
   'category',
-  // 'item'
+  'item'
 ];
 
 function App() {
@@ -104,6 +104,7 @@ function App() {
   const [sumWindows, setSumWindows] = useState([0, 0]);
 
   const [currentYear, setCurrentYear] = useState(2569);
+  const [compareYear, setCompareYear] = useState(2568);
   const [navigation, setNavigation] = useState([{ key: null, displayName: 'รวมทุกหน่วยงาน', groupBy: 'ministry' }]);
 
   const navigateTo = useCallback((key, displayName = null, groupBy = null) => {
@@ -134,7 +135,7 @@ function App() {
     const fetchData = async () => {
       const apiEndpoint = `${process.env.REACT_APP_API_URL}/api/breakdown`;
       const params = {
-        year: currentYear,
+        year: [currentYear, compareYear, 2567, 2566, 2565], // todo: dynamic years
         group: navigation[navigation.length - 1].groupBy,
       };
       for (let i = 0; i < navigation.length - 1; i++) {
@@ -152,7 +153,12 @@ function App() {
       console.log('🔍 fetching data with params', params);
 
       const url = new URL(apiEndpoint);
-      url.search = new URLSearchParams(params).toString();
+      const searchParams = new URLSearchParams();
+      params.year.forEach((y) => searchParams.append('year', y));
+      Object.entries(params).forEach(([k, v]) => {
+        if (k !== 'year') searchParams.append(k, v);
+      });
+      url.search = searchParams.toString();
 
       const response = await fetch(url);
       if (!response.ok) throw new Error('API error');

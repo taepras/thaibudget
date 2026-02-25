@@ -61,8 +61,6 @@ const PercentChange = styled.span`
 
 function PercentageChangeList({
   data,
-  filters,
-  hierarchyBy,
   hoveredItemName = null,
   setHoveredItemName = () => { },
   onItemClick = () => { },
@@ -74,75 +72,37 @@ function PercentageChangeList({
     amount: 'จำนวนเงินเปลี่ยนแปลง',
     budget: 'จำนวนเงินงบประมาณ',
   };
+
+  const primaryYear = data?.years?.[0];
+  const compareYear = data?.years?.[1];
+
   const changeData = useMemo(() => {
-    if (!data || data.length === 0 || !filters || filters.length === 0) {
-      return [];
-    }
+    if (!data || !data.rows || data.rows.length === 0) return [];
 
-    const activeFilters = filters[0] === 'all' ? filters.slice(1) : filters;
-
-    // hierarchyBy already contains the effective hierarchy from parent
-    // Determine the next hierarchy level to compare items at
-    const levelToCompare = Math.min(activeFilters.length, hierarchyBy.length - 1);
-    const compareField = hierarchyBy[levelToCompare];
-
-    // Filter data: apply all current active filters
-    let filtered = data;
-    for (let i = 0; i < activeFilters.length; i++) {
-      const filterLevel = hierarchyBy[i];
-      const filterValue = activeFilters[i];
-      filtered = filtered.filter((d) => d[filterLevel] === filterValue);
-    }
-
-    // Group by the compare field and calculate totals for each year
-    const groups = new Map();
-
-    // If we're at root, we're comparing by the first level (ministries)
-    // Otherwise, we're comparing by the next level's children
-    filtered.forEach((d) => {
-      const groupKey = d[compareField];
-      const amount69 = parseFloat(d.AMOUNT_2569?.replace(/,/g, '') || '0') || 0;
-      const amount68 = parseFloat(d.AMOUNT_2568?.replace(/,/g, '') || '0') || 0;
-
-      if (!groups.has(groupKey)) {
-        groups.set(groupKey, { amount69: 0, amount68: 0 });
-      }
-      const group = groups.get(groupKey);
-      group.amount69 += amount69;
-      group.amount68 += amount68;
+    return data.rows.map((row) => {
+      const amountCurrent = +(row.amounts?.[primaryYear] ?? 0);
+      const amountPrev = +(row.amounts?.[compareYear] ?? 0);
+      const isNew = amountPrev === 0 && amountCurrent > 0;
+      const growth = amountPrev > 0
+        ? (amountCurrent - amountPrev) / amountPrev
+        : (amountCurrent > 0 ? 1 : 0);
+      return {
+        name: row.name,
+        id: row.id,
+        growth,
+        isNew,
+        amountCurrent,
+        amountPrev,
+        diff: amountCurrent - amountPrev,
+      };
+    }).sort((a, b) => {
+      if (a.isNew && !b.isNew) return -1;
+      if (!a.isNew && b.isNew) return 1;
+      if (sortMode === 'amount') return b.diff - a.diff;
+      if (sortMode === 'budget') return b.amountCurrent - a.amountCurrent;
+      return b.growth - a.growth;
     });
-
-    // Calculate % changes
-    const changes = Array.from(groups.entries())
-      .map(([name, { amount69, amount68 }]) => {
-        const isNew = amount68 === 0 && amount69 > 0;
-        const growth = amount68 > 0 ? (amount69 - amount68) / amount68 : (amount69 > 0 ? 1 : 0);
-        return {
-          name,
-          growth,
-          isNew,
-          amount68,
-          amount69,
-          diff: amount69 - amount68,
-        };
-      })
-      .sort((a, b) => {
-        // New items first, then by selected sort mode
-        if (a.isNew && !b.isNew) return -1;
-        if (!a.isNew && b.isNew) return 1;
-
-        if (sortMode === 'amount') {
-          return b.diff - a.diff;
-        }
-        if (sortMode === 'budget') {
-          return b.amount69 - a.amount69;
-        }
-        // Default: 'percent'
-        return b.growth - a.growth;
-      });
-
-    return changes;
-  }, [data, filters, hierarchyBy, sortMode]);
+  }, [data, primaryYear, compareYear, sortMode]);
 
   return (
     <Container>
@@ -159,7 +119,7 @@ function PercentageChangeList({
         }}
       >
         <DropdownLink
-          label={`เรียงตาม ${sortModeLabels[sortMode]} เทียบกับปี 68`}
+          label={`เรียงตาม ${sortModeLabels[sortMode]}${compareYear ? ` เทียบกับปี ${String(compareYear).slice(-2)}` : ''}`}
           options={[
             { value: 'percent', label: '% ความเปลี่ยนแปลง' },
             { value: 'amount', label: 'จำนวนเงินเปลี่ยนแปลง' },
@@ -186,7 +146,7 @@ function PercentageChangeList({
               displayValue = `${item.diff > 0 ? '+' : ''}${abbreviateNumber(item.diff)}`;
               displayColor = item.diff >= 0 ? '#00ac00' : '#cc0000';
             } else if (sortMode === 'budget') {
-              displayValue = abbreviateNumber(item.amount69);
+              displayValue = abbreviateNumber(item.amountCurrent);
               displayColor = '#00ac00';
             }
 
