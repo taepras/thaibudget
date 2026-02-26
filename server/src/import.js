@@ -184,6 +184,9 @@ async function runImport() {
     await client.query("set local synchronous_commit = off");
     console.log("Transaction started");
 
+    // Drop legacy unique constraint on item_id if it still exists from old schema
+    await client.query("alter table fact_budget_item drop constraint if exists fact_budget_item_item_id_key");
+
     if (reset) {
       console.log("Truncating tables...");
       await client.query(

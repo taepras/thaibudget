@@ -62,18 +62,21 @@ const PercentChange = styled.span`
   }};
 `;
 
-function Sparkline({ amounts, years, uid, width = 48, height = 14 }) {
+function Sparkline({
+  amounts, years, uid, color = '#00cc66', width = 48, height = 14,
+}) {
   if (!amounts || !years || years.length < 2) return null;
   const sortedYears = [...years].sort((a, b) => a - b);
   const values = sortedYears.map((y) => +(amounts[y] ?? 0));
   const minVal = Math.min(...values);
   const maxVal = Math.max(...values);
-  const range = maxVal - minVal || 1;
+  const baseline = minVal <= 0 ? 0 : minVal * (2 / 3);
+  const range = maxVal - baseline || 1;
   const pad = 1;
   const id = `spark-${uid}`;
 
   const toX = (i) => (i / (values.length - 1)) * width;
-  const toY = (v) => pad + (1 - (v - minVal) / range) * (height - pad * 2);
+  const toY = (v) => pad + (1 - (v - baseline) / range) * (height - pad * 2);
 
   const points = values.map((v, i) => [toX(i), toY(v)]);
   const linePath = points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
@@ -87,12 +90,12 @@ function Sparkline({ amounts, years, uid, width = 48, height = 14 }) {
     >
       <defs>
         <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#00cc66" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#00cc66" stopOpacity="0" />
+          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d={areaPath} fill={`url(#${id})`} />
-      <path d={linePath} fill="none" stroke="#00cc66" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      <path d={linePath} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
@@ -152,9 +155,9 @@ function PercentageChangeList({
         style={{
           marginBottom: '12px',
           fontSize: 12,
-          opacity: 1,
           position: 'relative',
           display: 'inline-block',
+          opacity: 0.6,
         }}
       >
         <DropdownLink
@@ -206,7 +209,7 @@ function PercentageChangeList({
                   {item.name}
                 </Name>
                 <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                  <Sparkline amounts={item.amounts} years={data?.years} uid={item.id} />
+                  <Sparkline amounts={item.amounts} years={data?.years} uid={item.id} color={displayColor} />
                   <PercentChange growth={item.growth} style={{ color: displayColor }}>
                     {displayValue}
                   </PercentChange>

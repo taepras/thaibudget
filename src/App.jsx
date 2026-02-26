@@ -33,7 +33,7 @@ const CreditLink = styled.a`
   text-align: center;
 
   &:hover {
-    opacity: 0.7;
+    opacity: 0.6;
   }
 
   small {
@@ -150,7 +150,6 @@ function App() {
       }
       // if (navigation.length > 1) { params.filterMinistryId = navigation[navigation.length - 1].key; }
 
-      console.log('🔍 fetching data with params', params);
 
       const url = new URL(apiEndpoint);
       const searchParams = new URLSearchParams();
@@ -160,10 +159,14 @@ function App() {
       });
       url.search = searchParams.toString();
 
+      console.log('🔍 fetching data', url.href);
+
       const response = await fetch(url);
       if (!response.ok) throw new Error('API error');
       const result = await response.json();
+
       console.log('✅ api data loaded', result);
+
       setData(result);
       setLoading(false);
     };

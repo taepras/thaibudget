@@ -58,7 +58,7 @@ const BarLabel = styled.div`
 
 const BarValue = styled.div`
   font-size: 9px;
-  // opacity: 0.7;
+  // opacity: 0.6;
   color: white;
 `;
 

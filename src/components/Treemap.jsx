@@ -339,7 +339,7 @@ function TreemapComponent({
     treemapPieceMerged.select('text.text-value')
       .attr('x', 5)
       .attr('y', 24)
-      .attr('fill-opacity', 0.7)
+      .attr('fill-opacity', 0.6)
       .attr('dominant-baseline', 'hanging')
       .attr('opacity', 1)
       .text((d) => abbreviateNumber(d.value));
@@ -347,7 +347,7 @@ function TreemapComponent({
     treemapPieceMerged.select('text.text-growth')
       .attr('x', 5)
       .attr('y', 40)
-      .attr('fill-opacity', 0.7)
+      .attr('fill-opacity', 0.6)
       .attr('dominant-baseline', 'hanging')
       .attr('opacity', 1)
       .text((d) => {
@@ -411,7 +411,7 @@ function TreemapComponent({
             {title}
           </b>
           <br />
-          <span style={{ opacity: 0.7 }}>
+          <span style={{ opacity: 0.6 }}>
             {sum.toLocaleString()} บาท
             {growth != null && (
               <span
@@ -432,7 +432,7 @@ function TreemapComponent({
             display: 'flex',
             alignItems: 'center',
             fontSize: 11,
-            opacity: 0.7,
+            opacity: 0.6,
             gap: '6px',
             marginTop: 4,
           }}
