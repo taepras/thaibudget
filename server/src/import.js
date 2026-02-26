@@ -26,6 +26,9 @@ const reset = process.argv.includes("--reset");
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('render.com')
+    ? { rejectUnauthorized: false }
+    : false,
 });
 
 const FACT_BATCH_SIZE = 500;
