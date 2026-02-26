@@ -120,11 +120,20 @@ function TailOverlay({
       .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
       .style('cursor', 'pointer')
       .on('mouseenter', (e, d) => {
+        d3.select(e.currentTarget)
+          .select('rect.box')
+          .style('filter', 'drop-shadow(0 0 3px rgba(255,255,255,0.8))');
+
         const tip = `${d?.data?.key}<br>${abbreviateNumber(d?.value)}<br>เติบโต: ${d?.GROWTH != null ? `${(d.GROWTH * 100).toFixed(1)}%` : 'N/A'}`;
         e.currentTarget.setAttribute('data-tip', tip);
         ReactTooltip.show(e.currentTarget);
       })
-      .on('mouseleave', (e) => ReactTooltip.hide(e.currentTarget))
+      .on('mouseleave', (e) => {
+        d3.select(e.currentTarget)
+          .select('rect.box')
+          .style('filter', null);
+        ReactTooltip.hide(e.currentTarget);
+      })
       .on('click', (e, d) => {
         e.stopPropagation();
         if (d?.data?.value?.isTailBucket) {
@@ -369,13 +378,22 @@ function TreemapComponent({
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [isNavLoading, setIsNavLoading] = useState(false);
   const navLoadTimerRef = useRef(null);
+  const zoomStateRef = useRef({ dx: 0, dy: 0, sx: 1, sy: 1 });
+  const zoomTileRef = useRef(null);
+  const isNavigationRenderRef = useRef(false);
 
   // Reset overlay when data changes
   useEffect(() => { setOverlayOpen(false); setOverlayCount(BATCH_SIZE); }, [data]);
 
   useEffect(() => {
-    // New data arrived — safe to allow D3 effect to run again
-    isNavigatingRef.current = false;
+    // New data arrived — don't reset isNavigatingRef here, let D3 effect check it first
+    // isNavigationRenderRef will be set by D3 effect if navigating
+    isNavigationRenderRef.current = false;
+    // Clear chart-next when data changes (but only if NOT navigating)
+    if (svgRef.current && !isNavigatingRef.current) {
+      d3.select(svgRef.current).select('g.chart-next').selectAll('*').remove();
+      // d3.select(svgRef.current).select('g.chart-next').attr('opacity', 0).attr('pointer-events', 'none');
+    }
     // Timer and isNavLoading are cleared at the END of the D3 effect so the spinner
     // covers both the fetch wait AND the rendering phase.
   }, [data]);
@@ -407,11 +425,24 @@ function TreemapComponent({
       });
   }, [hoveredItemName, gutter]);
 
+  // Zoom back to original scale when overlay closes
+  useEffect(() => {
+    if (overlayOpen || !svgRef.current) return;
+
+    const chartGroup = d3.select(svgRef.current).select('g.chart');
+    const svg = chartGroup;
+    chartGroup
+      .transition().duration(300)
+      .attr('transform', 'translate(0,0) scale(1,1)')
+      .on('end', () => {
+        // Restore interactivity and text after zoom animation
+        svg.selectAll('g.treemap-piece').attr('pointer-events', 'auto');
+        svg.selectAll('text').attr('opacity', 1);
+      });
+  }, [overlayOpen]);
+
   useEffect(() => {
     if (!svgRef.current) return;
-    // While a click-zoom is in flight, don't touch the DOM —
-    // let the zoom animation hold until new data arrives.
-    if (isNavigatingRef.current) return;
 
     const svgHeight = svgRef.current.clientHeight;
 
@@ -432,16 +463,9 @@ function TreemapComponent({
 
     const newSum = nestedData.values.reduce((a, b) => a + (b.value?.value ?? b.value ?? 0), 0);
 
-    const itemCount = nestedData.values.length;
-    const isLargeDataset = itemCount > MAX_TILES / 2;
-    const transitionDuration = isLargeDataset ? 0 : 300;
+    const transitionDuration = 300;
 
-    // const newSumWin = [...sumWindows];
-    // const idx0 = newSumWin.indexOf(sum);
-    // if (idx0 !== -1) {
-    //   newSumWin[idx0] = newSum;
-    // }
-    // const fullVal = d3.max(newSumWin);
+    // Always render at proportional scale into g.chart
     const fullVal = data.totals?.[data.years?.[0]];
     const treeFullArea = (width - 2 * padding) * (svgHeight - 2 * padding);
     const treeAspect = (width - 2 * padding) / (svgHeight - 2 * padding);
@@ -462,9 +486,28 @@ function TreemapComponent({
       (d) => (d.x1 - d.x0) >= MIN_TILE_PX && (d.y1 - d.y0) >= MIN_TILE_PX,
     );
 
+    // Always render into g.chart
     const svg = d3.select(svgRef.current).select('g.chart');
 
-    const treemapPieceGroup = svg
+    // When navigating, render into g.chart-next instead
+    const targetChart = isNavigatingRef.current ? 'g.chart-next' : 'g.chart';
+    const renderChart = d3.select(svgRef.current).select(targetChart);
+    console.log('rendering into', targetChart, 'isNavigating', isNavigatingRef.current, 'isNavigationRender', isNavigationRenderRef.current);
+
+    if (isNavigatingRef.current) {
+      const { sx, sy } = zoomStateRef.current;
+      renderChart.attr('transform', `translate(${gutter / 2}, ${gutter / 2}) scale(${1 / sx},${1 / sy})`);
+    }
+
+    // Mark that we're rendering the new chart
+    if (isNavigatingRef.current) {
+      isNavigationRenderRef.current = true;
+    }
+
+    // Clear g.chart (or g.chart-next if navigating) before rendering new tiles
+    renderChart.selectAll('*').remove();
+
+    const treemapPieceGroup = renderChart
       .selectAll('g.treemap-piece')
       .data(visibleLeaves, (d) => `${dataKey}-${d?.data?.value?.id ?? d?.data?.key}`);
 
@@ -514,6 +557,10 @@ function TreemapComponent({
 
     treemapPieceMerged
       .on('mouseenter', (e, d) => {
+        d3.select(e.currentTarget)
+          .select('rect.box')
+          .style('filter', 'drop-shadow(0 0 3px rgba(255,255,255,0.8))');
+
         const nodeGrowth = d?.GROWTH;
         const lastYear = d?.AMOUNT_LASTYEAR;
         const growthText = nodeGrowth != null ? `${(nodeGrowth * 100).toFixed(1)}%` : 'N/A';
@@ -523,47 +570,71 @@ function TreemapComponent({
         ReactTooltip.show(e.currentTarget);
       })
       .on('mouseleave', (e) => {
+        d3.select(e.currentTarget)
+          .select('rect.box')
+          .style('filter', null);
         ReactTooltip.hide(e.currentTarget);
       })
       .on('click', null)
       .on('click', (e, d) => {
-        const newArea = treeFullArea;
-        const newH = Math.sqrt(newArea / treeAspect);
-        const newW = newArea / newH;
+        // Current tile dimensions (before zoom)
+        const oldTileWidth = d.x1 - d.x0 - gutter;
+        const oldTileHeight = d.y1 - d.y0 - gutter;
+        const oldTileX = d.x0 + gutter / 2;
+        const oldTileY = d.y0 + gutter / 2;
 
-        const dx = d.x0;
-        const dy = d.y0;
-        const sx = newW / (d.x1 - d.x0);
-        const sy = newH / (d.y1 - d.y0);
+        // Scale factors: how much to grow the tile
+        const sx = treeW / oldTileWidth;
+        const sy = treeH / oldTileHeight;
 
+        // Translation to move clicked tile to origin
+        const dx = oldTileX;
+        const dy = oldTileY;
+
+        zoomStateRef.current = { dx, dy, sx, sy };
+        zoomTileRef.current = e.currentTarget;
         d3.select(this).classed('selected', true);
 
-        if (isLargeDataset) {
-          treemapPieceMerged
-            .attr('transform', (p) => `translate(${(p.x0 - dx) * sx},${(p.y0 - dy) * sy})`);
-          treemapPieceMerged.select('rect.box')
-            .attr('width', (p) => Math.max(sx * (p.x1 - p.x0), 0))
-            .attr('height', (p) => Math.max(sy * (p.y1 - p.y0), 0));
-          treemapPieceMerged.select('clipPath rect')
-            .attr('width', (p) => Math.max(sx * (p.x1 - p.x0), 0))
-            .attr('height', (p) => Math.max(sy * (p.y1 - p.y0), 0));
-        } else {
-          treemapPieceMerged
-            .transition().duration(300)
-            .attr('transform', (p) => `translate(${(p.x0 - dx) * sx},${(p.y0 - dy) * sy})`);
-          treemapPieceMerged.select('rect.box')
-            .transition().duration(300)
-            .attr('width', (p) => Math.max(sx * (p.x1 - p.x0), 0))
-            .attr('height', (p) => Math.max(sy * (p.y1 - p.y0), 0));
-          treemapPieceMerged.select('clipPath rect')
-            .transition().duration(300)
-            .attr('width', (p) => Math.max(sx * (p.x1 - p.x0), 0))
-            .attr('height', (p) => Math.max(sy * (p.y1 - p.y0), 0));
-        }
+        // Hide all text before zoom and disable hover effects
+        // svg.selectAll('text').transition().duration(transitionDuration).attr('opacity', 0);
+        // svg.selectAll('g.treemap-piece').attr('pointer-events', 'none');
+
+        // Animate zoom on current chart
+        svg
+          .transition().duration(transitionDuration)
+          .attr('transform', `translate(${-dx * sx},${-dy * sy}) scale(${sx},${sy})`)
+          .on('end', () => {
+            //finalize swap
+            console.log('finalize swap');
+
+            const wrapperNode = d3.select(svgRef.current).select('g.chart-wrapper').node();
+
+            //move g.chart-next to wrapper node and reset scale so we can swap the children
+            const nextChart = d3.select(svgRef.current).select('g.chart-next');
+            const nextNode = nextChart.node();
+            nextChart.attr('transform', 'translate(0,0) scale(1,1)');
+            wrapperNode.appendChild(nextNode);
+
+            const oldChart = d3.select(svgRef.current).select('g.chart');
+            oldChart
+              .transition()
+              .duration(500)
+              .style('opacity', 0)
+              .on('end', () => {
+                const oldChildren = oldChart.selectChildren().nodes();
+                oldChildren.forEach((child) => child.remove());
+
+                const nextChildren = nextChart.selectChildren().nodes();
+                nextChildren.forEach((child) => wrapperNode.appendChild(child));
+
+                oldChart.attr('transform', 'translate(0,0) scale(1,1)');
+                oldChart.style('opacity', 1);
+              });
+          });
 
         // "อื่นๆ" bucket — play zoom animation then open overlay
         if (d?.data?.value?.isTailBucket) {
-          setTimeout(() => setOverlayOpen(true), isLargeDataset ? 0 : 300);
+          setTimeout(() => setOverlayOpen(true), transitionDuration);
           return;
         }
 
@@ -571,50 +642,35 @@ function TreemapComponent({
         navLoadTimerRef.current = setTimeout(() => {
           if (isNavigatingRef.current) setIsNavLoading(true);
         }, 300);
-        setTimeout(() => {
-          navigateToRef.current(d?.data?.value?.id, d?.data?.key);
-        }, transitionDuration);
+        // Start navigation immediately so the new chart can render while the zoom runs.
+        navigateToRef.current(d?.data?.value?.id, d?.data?.key);
       });
 
-    if (isLargeDataset) {
-      treemapPieceMerged
-        .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
-        .attr('opacity', 1);
-      treemapPieceMerged.select('rect.box')
-        .attr('rx', 3)
-        .style('fill', (d) => getNodeColor(d))
-        .attr('stroke', 'black')
-        .attr('stroke-width', gutter)
-        .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
-        .attr('height', (d) => Math.max((d.y1 - d.y0) || 0, 0));
-      treemapPieceMerged.select('clipPath rect')
-        .attr('rx', 3)
-        .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
-        .attr('height', (d) => Math.max((d.y1 - d.y0) || 0, 0));
-    } else {
-      treemapPieceMerged
-        .transition().duration(300)
-        .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
-        .attr('opacity', 1);
-      treemapPieceMerged.select('rect.box')
-        .transition().duration(300)
-        .attr('rx', 3)
-        .style('fill', (d) => getNodeColor(d))
-        .attr('stroke', (d) => {
-          if (!hoveredItemName) return 'black';
-          return d?.data?.key === hoveredItemName ? 'white' : 'black';
-        })
-        .attr('stroke-width', (d) => {
-          if (!hoveredItemName) return gutter;
-          return d?.data?.key === hoveredItemName ? gutter * 2 : gutter;
-        })
-        .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
-        .attr('height', (d) => Math.max((d.y1 - d.y0) || 0, 0));
-      treemapPieceMerged.select('clipPath rect')
-        .transition().duration(300)
-        .attr('rx', 3)
-        .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
-        .attr('height', (d) => Math.max((d.y1 - d.y0) || 0, 0));
+    treemapPieceMerged
+      .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
+      .attr('opacity', 1);
+    treemapPieceMerged.select('rect.box')
+      .attr('rx', 3)
+      .style('fill', (d) => getNodeColor(d))
+      .attr('stroke', (d) => {
+        if (!hoveredItemName) return 'black';
+        return d?.data?.key === hoveredItemName ? 'white' : 'black';
+      })
+      .attr('stroke-width', (d) => {
+        if (!hoveredItemName) return gutter;
+        return d?.data?.key === hoveredItemName ? gutter * 2 : gutter;
+      })
+      .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
+      .attr('height', (d) => Math.max((d.y1 - d.y0) || 0, 0));
+    treemapPieceMerged.select('clipPath rect')
+      .attr('rx', 3)
+      .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
+      .attr('height', (d) => Math.max((d.y1 - d.y0) || 0, 0));
+
+    // Reset zoom transform when data changes (do NOT reset during active navigation)
+    if (!isNavigatingRef.current) {
+      zoomStateRef.current = { dx: 0, dy: 0, sx: 1, sy: 1 };
+      svg.select('g.chart').attr('transform', 'translate(0,0) scale(1,1)');
     }
 
     treemapPieceMerged.select('text.text-name')
@@ -647,17 +703,31 @@ function TreemapComponent({
     treemapPieceGroup.exit()
       .transition()
       .delay(transitionDuration)
-      .duration(isLargeDataset ? 0 : 600)
+      .duration(600)
       .attr('opacity', 0)
       .remove();
 
-    // Dismiss the nav spinner after the next paint — at this point D3 DOM work
-    // is done and the browser will render the new frame before the callback fires.
-    const clearNavRaf = requestAnimationFrame(() => {
-      setIsNavLoading(false);
-      if (navLoadTimerRef.current) { clearTimeout(navLoadTimerRef.current); navLoadTimerRef.current = null; }
-    });
-    return () => cancelAnimationFrame(clearNavRaf);
+    if (isNavigatingRef.current) {
+      const { dx, dy, sx, sy } = zoomStateRef.current;
+      const nextChart = d3.select(svgRef.current).select('g.chart-next');
+      const nextNode = nextChart.node();
+      const tileNode = zoomTileRef.current;
+
+      if (tileNode && nextNode) {
+        // Make chart-next a child of the clicked tile so it starts at tile scale.
+        tileNode.appendChild(nextNode);
+        nextChart
+          .attr('transform', `translate(${gutter / 2}, ${gutter / 2}) scale(${1 / sx},${1 / sy})`)
+          // .on('end', finalizeSwap);
+      } else {
+        // Fallback: position chart-next in the wrapper at the tile bounds.
+        nextChart
+          .attr('transform', `translate(${dx},${dy}) scale(${1 / sx},${1 / sy})`)
+          // .on('end', finalizeSwap);
+      }
+    }
+
+    return;
   }, [
     dataKey,
     svgRef,
@@ -796,7 +866,10 @@ function TreemapComponent({
           ref={observe}
         >
           <svg ref={svgRef} width={width} height={height}>
-            <g transform={`translate(${padding}, ${padding})`} className="chart" />
+            <g transform={`translate(${padding}, ${padding})`} className="chart-wrapper">
+              <g className="chart" />
+              <g className="chart-next" style={{ opacity: 1, pointerEvents: 'none' }} />
+            </g>
           </svg>
         </div>
         {overlayOpen && tailItemsRef.current.length > 0 && (
