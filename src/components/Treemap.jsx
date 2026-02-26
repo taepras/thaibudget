@@ -254,16 +254,7 @@ function TreemapComponent({
   isLoading = true,
   padding = 16,
   gutter = 4,
-  filters = ['all'],
-  setFilters = () => { },
-  hierarchyBy = [],
-  groupingAxis = 'MINISTRY',
-  setCurrentSum = (sum) => { },
   title = 'รวมทุกหน่วยงาน',
-  // fullValue = -1,
-  index = 0,
-  // isMultipleMaxSum = false,
-  sumWindows = [],
   hoveredItemName = null,
   colorScaleMaxValue = 0.3,
   navigateTo = (key, displayName, groupBy) => { }
@@ -302,37 +293,25 @@ function TreemapComponent({
     },
   }), []);
 
-  // const [data, setData] = useState([]);
-  const [sum, setSum] = useState(-1); // or 'bar'
+  const tailItemsRef = useRef([]);
+  const [primaryYear, setPrimaryYear] = useState(0);
+  const [compareYear, setCompareYear] = useState(0);
 
   const colorScale = useMemo(() => d3.scaleLinear()
-    .domain([-colorScaleMaxValue, 0, colorScaleMaxValue]) // -50% to +50% growth
+    .domain([-colorScaleMaxValue, 0, colorScaleMaxValue])
     .range(['#cf0000ff', '#333333', '#00ac00ff'])
     .clamp(true), [colorScaleMaxValue]);
 
   const getNodeColor = useCallback((node) => {
-    // New items (only in 2026, no amount in 2025) get the greenest color
-    const lastYear = node?.AMOUNT_LASTYEAR;
-    if (lastYear == null || lastYear === 0) {
-      return '#00aaaaff'; // Brightest green for new items
-    }
-    // Existing items use the growth-based color scale
+    if (node?.AMOUNT_LASTYEAR == null || node?.AMOUNT_LASTYEAR === 0) return '#00aaaaff';
     return node?.GROWTH != null ? colorScale(node.GROWTH) : '#666666';
   }, [colorScale]);
-
-  const tailItemsRef = useRef([]);
-
-  const dataKey = useMemo(() => (
-    `${data?.group || groupingAxis}|${hierarchyBy.join('>')}|${filters.join('>')}`
-  ), [data?.group, groupingAxis, hierarchyBy, filters]);
 
   // convert to d3 nest format: { key, values: [{ key, value }] }
   // Cap at MAX_TILES items — beyond this the treemap layout + DOM work freezes the page.
   // Tail items are merged into a single "อื่นๆ" bucket.
   const MAX_TILES = 500;
   const nestedData = useMemo(() => {
-    const primaryYear = data.years?.[0];
-    const compareYear = data.years?.[1];
     if (!data.rows) return { key: null, values: [] };
 
     const mapped = data.rows.map((r) => ({
@@ -371,9 +350,14 @@ function TreemapComponent({
       },
     });
     return { key: null, values: top };
-  }, [data]);
+  }, [data, primaryYear, compareYear]);
 
-  const [growth, setGrowth] = useState(null);
+  const growth = useMemo(() => {
+    const current = data.totals?.[primaryYear];
+    const lastYear = data.totals?.[compareYear];
+    return lastYear > 0 ? (current / lastYear) - 1 : null;
+  }, [data, primaryYear, compareYear]);
+
   const [overlayCount, setOverlayCount] = useState(BATCH_SIZE);
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [isNavLoading, setIsNavLoading] = useState(false);
@@ -382,34 +366,23 @@ function TreemapComponent({
   const zoomTileRef = useRef(null);
   const isNavigationRenderRef = useRef(false);
 
-  // Reset overlay when data changes
-  useEffect(() => { setOverlayOpen(false); setOverlayCount(BATCH_SIZE); }, [data]);
-
   useEffect(() => {
-    // New data arrived — don't reset isNavigatingRef here, let D3 effect check it first
-    // isNavigationRenderRef will be set by D3 effect if navigating
+    // on new data change
     isNavigationRenderRef.current = false;
-    // Clear chart-next when data changes (but only if NOT navigating)
     if (svgRef.current && !isNavigatingRef.current) {
       d3.select(svgRef.current).select('g.chart-next').selectAll('*').remove();
-      // d3.select(svgRef.current).select('g.chart-next').attr('opacity', 0).attr('pointer-events', 'none');
     }
-    // Timer and isNavLoading are cleared at the END of the D3 effect so the spinner
-    // covers both the fetch wait AND the rendering phase.
+
+    setOverlayOpen(false);
+    setOverlayCount(BATCH_SIZE);
+
+    setPrimaryYear(data.years?.[0]);
+    setCompareYear(data.years?.[1]);
+
   }, [data]);
 
   useEffect(() => {
-    const s = nestedData.values.reduce((a, b) => a + (b.value?.value ?? b.value ?? 0), 0);
-    const lastYearSum = nestedData.values.reduce((a, b) => a + (b.value?.AMOUNT_LASTYEAR || 0), 0);
-    const g = lastYearSum > 0 ? (s / lastYearSum) - 1 : null;
-    console.log('sum', s, 'lastYear', lastYearSum, 'growth', g, data);
-    // Object.is handles NaN === NaN correctly (true), preventing an infinite loop
-    if (!Object.is(sum, s)) { setCurrentSum(s); }
-    setSum(s);
-    setGrowth(g);
-  }, [nestedData, setCurrentSum, sum]);
-
-  useEffect(() => {
+    // update stroke
     if (!svgRef.current) return;
 
     d3.select(svgRef.current)
@@ -427,6 +400,7 @@ function TreemapComponent({
 
   // Zoom back to original scale when overlay closes
   useEffect(() => {
+    // update overlay status
     if (overlayOpen || !svgRef.current) return;
 
     const chartGroup = d3.select(svgRef.current).select('g.chart');
@@ -442,6 +416,18 @@ function TreemapComponent({
   }, [overlayOpen]);
 
   useEffect(() => {
+    // data update
+    console.log('useeffect called', {
+      svgRef,
+      data,
+      nestedData,
+      width,
+      height,
+      padding,
+      gutter,
+      // getNodeColor,
+      hoveredItemName,
+    });
     if (!svgRef.current) return;
 
     const svgHeight = svgRef.current.clientHeight;
@@ -487,12 +473,11 @@ function TreemapComponent({
     );
 
     // Always render into g.chart
-    const svg = d3.select(svgRef.current).select('g.chart');
+    const currentChart = d3.select(svgRef.current).select('g.chart');
 
     // When navigating, render into g.chart-next instead
     const targetChart = isNavigatingRef.current ? 'g.chart-next' : 'g.chart';
     const renderChart = d3.select(svgRef.current).select(targetChart);
-    console.log('rendering into', targetChart, 'isNavigating', isNavigatingRef.current, 'isNavigationRender', isNavigationRenderRef.current);
 
     if (isNavigatingRef.current) {
       const { sx, sy } = zoomStateRef.current;
@@ -509,14 +494,14 @@ function TreemapComponent({
 
     const treemapPieceGroup = renderChart
       .selectAll('g.treemap-piece')
-      .data(visibleLeaves, (d) => `${dataKey}-${d?.data?.value?.id ?? d?.data?.key}`);
+      .data(visibleLeaves, (d) => `${data.name}-${d?.data?.value?.id ?? d?.data?.key}`);
 
     const treemapPieceGroupEnter = treemapPieceGroup
       .enter()
       .append('g')
       .attr('class', 'treemap-piece')
-      .attr('id', (d) => `${d?.data?.key?.replaceAll(/[ ()]/g, '')}-${index}`)
-      .attr('clip-path', (d) => `url(#clip-${d?.data?.key?.replaceAll(/[ ()]/g, '')}-${index})`)
+      .attr('id', (d) => `${d?.data?.key?.replaceAll(/[ ()]/g, '')}`)
+      .attr('clip-path', (d) => `url(#clip-${d?.data?.key?.replaceAll(/[ ()]/g, '')})`)
       .attr('transform', (d) => `translate(${d.x0 || 0},${d.y0 || 0})`);
 
     treemapPieceGroupEnter
@@ -529,7 +514,7 @@ function TreemapComponent({
 
     treemapPieceGroupEnter
       .append('clipPath')
-      .attr('id', (d) => `clip-${d?.data?.key?.replaceAll(/[ ()]/g, '')}-${index}`)
+      .attr('id', (d) => `clip-${d?.data?.key?.replaceAll(/[ ()]/g, '')}`)
       .append('rect')
       .attr('rx', 3)
       .attr('width', (d) => (d.x1 - d.x0) || 0)
@@ -600,7 +585,7 @@ function TreemapComponent({
         // svg.selectAll('g.treemap-piece').attr('pointer-events', 'none');
 
         // Animate zoom on current chart
-        svg
+        currentChart
           .transition().duration(transitionDuration)
           .attr('transform', `translate(${-dx * sx},${-dy * sy}) scale(${sx},${sy})`)
           .on('end', () => {
@@ -615,20 +600,21 @@ function TreemapComponent({
             nextChart.attr('transform', 'translate(0,0) scale(1,1)');
             wrapperNode.appendChild(nextNode);
 
-            const oldChart = d3.select(svgRef.current).select('g.chart');
-            oldChart
+            currentChart
               .transition()
               .duration(500)
               .style('opacity', 0)
               .on('end', () => {
-                const oldChildren = oldChart.selectChildren().nodes();
+                const oldChildren = currentChart.selectChildren().nodes();
                 oldChildren.forEach((child) => child.remove());
 
-                const nextChildren = nextChart.selectChildren().nodes();
-                nextChildren.forEach((child) => wrapperNode.appendChild(child));
+                currentChart.attr('transform', 'translate(0,0) scale(1,1)');
+                currentChart.style('opacity', 1);
 
-                oldChart.attr('transform', 'translate(0,0) scale(1,1)');
-                oldChart.style('opacity', 1);
+                const nextChildren = nextChart.selectChildren().nodes();
+                nextChildren.forEach((child) => currentChart.node().appendChild(child));
+
+                isNavigatingRef.current = false;
               });
           });
 
@@ -670,7 +656,7 @@ function TreemapComponent({
     // Reset zoom transform when data changes (do NOT reset during active navigation)
     if (!isNavigatingRef.current) {
       zoomStateRef.current = { dx: 0, dy: 0, sx: 1, sy: 1 };
-      svg.select('g.chart').attr('transform', 'translate(0,0) scale(1,1)');
+      currentChart.attr('transform', 'translate(0,0) scale(1,1)');
     }
 
     treemapPieceMerged.select('text.text-name')
@@ -716,30 +702,23 @@ function TreemapComponent({
       if (tileNode && nextNode) {
         // Make chart-next a child of the clicked tile so it starts at tile scale.
         tileNode.appendChild(nextNode);
-        nextChart
-          .attr('transform', `translate(${gutter / 2}, ${gutter / 2}) scale(${1 / sx},${1 / sy})`)
-          // .on('end', finalizeSwap);
+        nextChart.attr('transform', `translate(${gutter / 2}, ${gutter / 2}) scale(${1 / sx},${1 / sy})`)
       } else {
         // Fallback: position chart-next in the wrapper at the tile bounds.
-        nextChart
-          .attr('transform', `translate(${dx},${dy}) scale(${1 / sx},${1 / sy})`)
-          // .on('end', finalizeSwap);
+        nextChart.attr('transform', `translate(${dx},${dy}) scale(${1 / sx},${1 / sy})`)
       }
     }
 
     return;
   }, [
-    dataKey,
     svgRef,
+    data,
     nestedData,
     width,
     height,
     padding,
     gutter,
-    index,
-    sumWindows,
     getNodeColor,
-    data,
     hoveredItemName,
   ]);
 
@@ -774,7 +753,7 @@ function TreemapComponent({
           </b>
           <br />
           <span style={{ opacity: 0.6 }}>
-            {sum.toLocaleString()} บาท
+            {(data?.totals?.[primaryYear])?.toLocaleString() ?? 'n/a'} บาท
             {growth != null && (
               <span
                 style={{
