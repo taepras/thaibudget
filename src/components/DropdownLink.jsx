@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import styled from 'styled-components';
 
 const Toggle = styled.button`
@@ -32,7 +33,7 @@ const Menu = styled.div`
   border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 4px;
   padding: 8px 0;
-  z-index: 1000;
+  z-index: 9999;
   min-width: 180px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 `;
@@ -77,34 +78,50 @@ function DropdownLink({
   useEffect(() => {
     if (showMenu && toggleRef.current) {
       const rect = toggleRef.current.getBoundingClientRect();
+      // position: fixed uses viewport coords — no scrollY/scrollX needed
       setMenuPosition({
-        top: rect.bottom + window.scrollY,
-        left: rect.left + window.scrollX,
+        top: rect.bottom,
+        left: rect.left,
       });
     }
   }, [showMenu]);
+
+  // Close on click outside
+  useEffect(() => {
+    if (!showMenu) return undefined;
+    const handler = (e) => {
+      if (toggleRef.current && !toggleRef.current.contains(e.target)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showMenu]);
+
+  const menu = showMenu && ReactDOM.createPortal(
+    <Menu style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }}>
+      {options.map((option) => (
+        <MenuItem
+          key={option.value}
+          isActive={value === option.value}
+          onClick={() => {
+            onChange(option.value);
+            setShowMenu(false);
+          }}
+        >
+          {option.label}
+        </MenuItem>
+      ))}
+    </Menu>,
+    document.body,
+  );
 
   return (
     <Container>
       <Toggle ref={toggleRef} onClick={() => setShowMenu(!showMenu)}>
         {label}
       </Toggle>
-      {showMenu && (
-        <Menu style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }}>
-          {options.map((option) => (
-            <MenuItem
-              key={option.value}
-              isActive={value === option.value}
-              onClick={() => {
-                onChange(option.value);
-                setShowMenu(false);
-              }}
-            >
-              {option.label}
-            </MenuItem>
-          ))}
-        </Menu>
-      )}
+      {menu}
     </Container>
   );
 }

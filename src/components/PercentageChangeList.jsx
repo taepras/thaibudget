@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, {
+  useMemo, useState, useRef, useCallback, useEffect,
+} from 'react';
 import styled from 'styled-components';
 import { abbreviateNumber } from '../utils/numberFormat';
 import DropdownLink from './DropdownLink';
@@ -44,8 +46,8 @@ const Name = styled.span`
   flex: 1;
   overflow: hidden;
   margin-right: 8px;
-  // white-space: nowrap;
-  // text-overflow: ellipsis;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 `;
 
 const PercentChange = styled.span`
@@ -106,7 +108,27 @@ function PercentageChangeList({
   setHoveredItemName = () => { },
   onItemClick = () => { },
 }) {
-  const [sortMode, setSortMode] = useState('percent'); // 'percent', 'amount', 'budget'
+  const [sortMode, setSortMode] = useState('percent');
+
+  // Virtual scroll state
+  const ROW_HEIGHT = 34; // px — must match ListItem height below
+  const OVERSCAN = 8;    // extra rows rendered above/below viewport
+  const scrollRef = useRef(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(600);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return undefined;
+    setViewportHeight(el.clientHeight);
+    const ro = new ResizeObserver(() => setViewportHeight(el.clientHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const handleScroll = useCallback((e) => {
+    setScrollTop(e.currentTarget.scrollTop);
+  }, []);
 
   const sortModeLabels = {
     percent: '% ความเปลี่ยนแปลง',
@@ -172,51 +194,68 @@ function PercentageChangeList({
         />
       </div>
       {changeData.length > 0 && (
-        <div style={{ flexGrow: 1, overflowY: 'auto' }}>
-          {changeData.map((item) => {
-            let displayValue = '';
-            let displayColor = '';
-
-            if (sortMode === 'percent') {
-              displayValue = item.isNew ? 'ใหม่' : `${(item.growth * 100).toFixed(1)}%`;
-              if (item.isNew) displayColor = '#00cccc'; // Bright green for new items
-              else if (item.growth > 0.05) displayColor = '#00ac00';
-              else if (item.growth > 0) displayColor = '#88dd88';
-              else if (item.growth > -0.05) displayColor = '#ff9999';
-              else displayColor = '#cc0000';
-            } else if (sortMode === 'amount') {
-              displayValue = `${item.diff > 0 ? '+' : ''}${abbreviateNumber(item.diff)}`;
-              displayColor = item.diff >= 0 ? '#00ac00' : '#cc0000';
-            } else if (sortMode === 'budget') {
-              displayValue = abbreviateNumber(item.amountCurrent);
-              displayColor = '#00ac00';
-            }
-
-            return (
-              <ListItem
-                key={item.name}
-                onClick={() => onItemClick(item.name)}
-                onMouseEnter={() => setHoveredItemName(item.name)}
-                onMouseLeave={() => setHoveredItemName(null)}
-                style={
-                  {
-                    backgroundColor: hoveredItemName === item.name ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                    borderRadius: '4px',
-                  }
-                }
-              >
-                <Name title={item.name}>
-                  {item.name}
-                </Name>
-                <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                  <Sparkline amounts={item.amounts} years={data?.years} uid={item.id} color={displayColor} />
-                  <PercentChange growth={item.growth} style={{ color: displayColor }}>
-                    {displayValue}
-                  </PercentChange>
-                </div>
-              </ListItem>
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          style={{ flexGrow: 1, overflowY: 'auto' }}
+        >
+          {(() => {
+            const totalHeight = changeData.length * ROW_HEIGHT;
+            const startIdx = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
+            const endIdx = Math.min(
+              changeData.length - 1,
+              Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + OVERSCAN,
             );
-          })}
+            const visible = changeData.slice(startIdx, endIdx + 1);
+            const padTop = startIdx * ROW_HEIGHT;
+            const padBottom = totalHeight - (endIdx + 1) * ROW_HEIGHT;
+            return (
+              <>
+                <div style={{ height: padTop }} />
+                {visible.map((item) => {
+                  let displayValue = '';
+                  let displayColor = '';
+                  if (sortMode === 'percent') {
+                    displayValue = item.isNew ? 'ใหม่' : `${(item.growth * 100).toFixed(1)}%`;
+                    if (item.isNew) displayColor = '#00cccc';
+                    else if (item.growth > 0.05) displayColor = '#00ac00';
+                    else if (item.growth > 0) displayColor = '#88dd88';
+                    else if (item.growth > -0.05) displayColor = '#ff9999';
+                    else displayColor = '#cc0000';
+                  } else if (sortMode === 'amount') {
+                    displayValue = `${item.diff > 0 ? '+' : ''}${abbreviateNumber(item.diff)}`;
+                    displayColor = item.diff >= 0 ? '#00ac00' : '#cc0000';
+                  } else if (sortMode === 'budget') {
+                    displayValue = abbreviateNumber(item.amountCurrent);
+                    displayColor = '#00ac00';
+                  }
+                  return (
+                    <ListItem
+                      key={item.name}
+                      style={{
+                        height: ROW_HEIGHT,
+                        boxSizing: 'border-box',
+                        backgroundColor: hoveredItemName === item.name ? 'rgba(255,255,255,0.1)' : 'transparent',
+                        borderRadius: '4px',
+                      }}
+                      onClick={() => onItemClick(item.name)}
+                      onMouseEnter={() => setHoveredItemName(item.name)}
+                      onMouseLeave={() => setHoveredItemName(null)}
+                    >
+                      <Name title={item.name}>{item.name}</Name>
+                      <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                        <Sparkline amounts={item.amounts} years={data?.years} uid={item.id} color={displayColor} />
+                        <PercentChange growth={item.growth} style={{ color: displayColor }}>
+                          {displayValue}
+                        </PercentChange>
+                      </div>
+                    </ListItem>
+                  );
+                })}
+                <div style={{ height: padBottom }} />
+              </>
+            );
+          })()}
         </div>
       )}
       {changeData.length === 0 && (

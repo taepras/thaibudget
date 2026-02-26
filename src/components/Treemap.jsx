@@ -85,23 +85,45 @@ function TreemapComponent({
   ), [data?.group, groupingAxis, hierarchyBy, filters]);
 
   // convert to d3 nest format: { key, values: [{ key, value }] }
+  // Cap at MAX_TILES items — beyond this the treemap layout + DOM work freezes the page.
+  // Tail items are merged into a single "อื่นๆ" bucket.
+  const MAX_TILES = 500;
   const nestedData = useMemo(() => {
     const primaryYear = data.years?.[0];
     const compareYear = data.years?.[1];
-    return {
-      key: null,
-      values: data.rows ? data.rows.map((r) => ({
-        key: r.name,
-        value: {
-          id: r.id,
-          value: +(r.amounts?.[primaryYear] ?? 0),
-          AMOUNT_LASTYEAR: +(r.amounts?.[compareYear] ?? 0),
-          GROWTH: r.amounts?.[compareYear] > 0
-            ? (r.amounts[primaryYear] / r.amounts[compareYear]) - 1
-            : null,
-        },
-      })) : [],
-    };
+    if (!data.rows) return { key: null, values: [] };
+
+    const mapped = data.rows.map((r) => ({
+      key: r.name,
+      value: {
+        id: r.id,
+        value: +(r.amounts?.[primaryYear] ?? 0),
+        AMOUNT_LASTYEAR: +(r.amounts?.[compareYear] ?? 0),
+        GROWTH: r.amounts?.[compareYear] > 0
+          ? (r.amounts[primaryYear] / r.amounts[compareYear]) - 1
+          : null,
+      },
+    }));
+
+    // Sort descending by primary-year value so we keep the largest tiles
+    mapped.sort((a, b) => b.value.value - a.value.value);
+
+    if (mapped.length <= MAX_TILES) return { key: null, values: mapped };
+
+    const top = mapped.slice(0, MAX_TILES);
+    const tail = mapped.slice(MAX_TILES);
+    const tailValue = tail.reduce((s, r) => s + r.value.value, 0);
+    const tailLastYear = tail.reduce((s, r) => s + r.value.AMOUNT_LASTYEAR, 0);
+    top.push({
+      key: `อื่นๆ (${tail.length} รายการ)`,
+      value: {
+        id: null,
+        value: tailValue,
+        AMOUNT_LASTYEAR: tailLastYear,
+        GROWTH: tailLastYear > 0 ? (tailValue / tailLastYear) - 1 : null,
+      },
+    });
+    return { key: null, values: top };
   }, [data]);
 
   const [growth, setGrowth] = useState(null);
@@ -163,6 +185,10 @@ function TreemapComponent({
 
     const newSum = nestedData.values.reduce((a, b) => a + (b.value?.value ?? b.value ?? 0), 0);
 
+    const itemCount = nestedData.values.length;
+    const isLargeDataset = itemCount > MAX_TILES / 2;
+    const transitionDuration = isLargeDataset ? 0 : 300;
+
     // const newSumWin = [...sumWindows];
     // const idx0 = newSumWin.indexOf(sum);
     // if (idx0 !== -1) {
@@ -183,25 +209,24 @@ function TreemapComponent({
 
     treemap(root);
 
+    // Filter out sub-pixel tiles — they're invisible and each costs 5 DOM nodes + a GPU <mask>
+    const MIN_TILE_PX = 3;
+    const visibleLeaves = root.leaves().filter(
+      (d) => (d.x1 - d.x0) >= MIN_TILE_PX && (d.y1 - d.y0) >= MIN_TILE_PX,
+    );
+
     const svg = d3.select(svgRef.current).select('g.chart');
 
     const treemapPieceGroup = svg
       .selectAll('g.treemap-piece')
-      .data(root.leaves(), (d) => `${dataKey}-${d?.data?.value?.id ?? d?.data?.key}`);
+      .data(visibleLeaves, (d) => `${dataKey}-${d?.data?.value?.id ?? d?.data?.key}`);
 
     const treemapPieceGroupEnter = treemapPieceGroup
       .enter()
       .append('g')
       .attr('class', 'treemap-piece')
       .attr('id', (d) => `${d?.data?.key?.replaceAll(/[ ()]/g, '')}-${index}`)
-      .style('mask', (d) => `url(#mask-${d?.data?.key?.replaceAll(/[ ()]/g, '')}-${index})`)
-      .attr('data-tip', (d) => {
-        const itemGrowth = d?.GROWTH;
-        const lastYear = d?.AMOUNT_LASTYEAR;
-        const growthText = itemGrowth != null ? `${(itemGrowth * 100).toFixed(1)}%` : 'N/A';
-        const lastYearText = lastYear != null ? lastYear.toLocaleString() : 'N/A';
-        return `${d?.data?.key}<br>${d?.value?.toLocaleString?.()} บาท<br>ปีที่แล้ว: ${lastYearText} บาท<br>เติบโต: ${growthText}`;
-      })
+      .attr('clip-path', (d) => `url(#clip-${d?.data?.key?.replaceAll(/[ ()]/g, '')}-${index})`)
       .attr('transform', (d) => `translate(${d.x0 || 0},${d.y0 || 0})`);
 
     treemapPieceGroupEnter
@@ -213,12 +238,10 @@ function TreemapComponent({
       .attr('height', (d) => (d.y1 - d.y0) || 0);
 
     treemapPieceGroupEnter
-      .append('mask')
-      .attr('id', (d) => `mask-${d?.data?.key?.replaceAll(/[ ()]/g, '')}-${index}`)
+      .append('clipPath')
+      .attr('id', (d) => `clip-${d?.data?.key?.replaceAll(/[ ()]/g, '')}-${index}`)
       .append('rect')
-      .attr('class', 'mask')
       .attr('rx', 3)
-      .style('fill', 'white')
       .attr('width', (d) => (d.x1 - d.x0) || 0)
       .attr('height', (d) => (d.y1 - d.y0) || 0);
 
@@ -243,19 +266,20 @@ function TreemapComponent({
     const treemapPieceMerged = treemapPieceGroupEnter.merge(treemapPieceGroup);
 
     treemapPieceMerged
+      .on('mouseenter', (e, d) => {
+        const nodeGrowth = d?.GROWTH;
+        const lastYear = d?.AMOUNT_LASTYEAR;
+        const growthText = nodeGrowth != null ? `${(nodeGrowth * 100).toFixed(1)}%` : 'N/A';
+        const lastYearText = lastYear != null ? abbreviateNumber(lastYear) : 'N/A';
+        const tip = `${d?.data?.key}<br>${abbreviateNumber(d?.value)}<br>ปีที่แล้ว: ${lastYearText}<br>เติบโต: ${growthText}`;
+        e.currentTarget.setAttribute('data-tip', tip);
+        ReactTooltip.show(e.currentTarget);
+      })
+      .on('mouseleave', (e) => {
+        ReactTooltip.hide(e.currentTarget);
+      })
       .on('click', null)
       .on('click', (e, d) => {
-        // // for side-by-side view
-        // const newSumWindows = [...sumWindows];
-        // console.log('newSumWindows', newSumWindows);
-        // const idx = newSumWindows.indexOf(sum);
-        // if (idx !== -1) {
-        //   newSumWindows[idx] = d.value;
-        // }
-        // const newFullValue = d3.max(newSumWindows);
-        // console.log('newFullValue', newFullValue, d.value);
-
-        // const newArea = (d.value / (newFullValue || 1)) * treeFullArea;
         const newArea = treeFullArea;
         const newH = Math.sqrt(newArea / treeAspect);
         const newW = newArea / newH;
@@ -265,76 +289,83 @@ function TreemapComponent({
         const sx = newW / (d.x1 - d.x0);
         const sy = newH / (d.y1 - d.y0);
 
-        // console.log('prp', d3.select(this), e, d, el);
-        // const sx = 0.43;
-        // const sy = 1.05;
-
         d3.select(this).classed('selected', true);
 
-        treemapPieceMerged
-          .transition()
-          .duration(300)
-          .attr('transform', (p) => `translate(${(p.x0 - dx) * sx},${(p.y0 - dy) * sy})`);
-
-        treemapPieceMerged.select('rect.box')
-          .transition()
-          .duration(300)
-          .attr('width', (p) => Math.max(sx * (p.x1 - p.x0), 0))
-          .attr('height', (p) => Math.max(sy * (p.y1 - p.y0), 0));
-
-        treemapPieceMerged.select('rect.mask')
-          .transition()
-          .duration(300)
-          .attr('width', (p) => Math.max(sx * (p.x1 - p.x0), 0))
-          .attr('height', (p) => Math.max(sy * (p.y1 - p.y0), 0));
+        if (isLargeDataset) {
+          treemapPieceMerged
+            .attr('transform', (p) => `translate(${(p.x0 - dx) * sx},${(p.y0 - dy) * sy})`);
+          treemapPieceMerged.select('rect.box')
+            .attr('width', (p) => Math.max(sx * (p.x1 - p.x0), 0))
+            .attr('height', (p) => Math.max(sy * (p.y1 - p.y0), 0));
+          treemapPieceMerged.select('clipPath rect')
+            .attr('width', (p) => Math.max(sx * (p.x1 - p.x0), 0))
+            .attr('height', (p) => Math.max(sy * (p.y1 - p.y0), 0));
+        } else {
+          treemapPieceMerged
+            .transition().duration(300)
+            .attr('transform', (p) => `translate(${(p.x0 - dx) * sx},${(p.y0 - dy) * sy})`);
+          treemapPieceMerged.select('rect.box')
+            .transition().duration(300)
+            .attr('width', (p) => Math.max(sx * (p.x1 - p.x0), 0))
+            .attr('height', (p) => Math.max(sy * (p.y1 - p.y0), 0));
+          treemapPieceMerged.select('clipPath rect')
+            .transition().duration(300)
+            .attr('width', (p) => Math.max(sx * (p.x1 - p.x0), 0))
+            .attr('height', (p) => Math.max(sy * (p.y1 - p.y0), 0));
+        }
 
         isNavigatingRef.current = true;
         setTimeout(() => {
           navigateToRef.current(d?.data?.value?.id, d?.data?.key);
-          // history.push(`/${newFilters.join('/')}`);
-        }, 300);
-      })
-      .transition()
-      .duration(300)
-      .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
-      .attr('opacity', 1)
-      .attr('data-tip', (d) => {
-        const nodeGrowth = d?.GROWTH;
-        const lastYear = d?.AMOUNT_LASTYEAR;
-        const growthText = nodeGrowth != null ? `${(nodeGrowth * 100).toFixed(1)}%` : 'N/A';
-        const lastYearText = lastYear != null ? abbreviateNumber(lastYear) : 'N/A';
-        return `${d?.data?.key}<br>${abbreviateNumber(d?.value)}<br>ปีที่แล้ว: ${lastYearText}<br>เติบโต: ${growthText}`;
+        }, transitionDuration);
       });
 
-    treemapPieceMerged.select('rect.box')
-      .transition()
-      .duration(300)
-      .attr('rx', 3)
-      .style('fill', (d) => getNodeColor(d))
-      .attr('stroke', (d) => {
-        if (!hoveredItemName) return 'black';
-        return d?.data?.key === hoveredItemName ? 'white' : 'black';
-      })
-      .attr('stroke-width', (d) => {
-        if (!hoveredItemName) return gutter;
-        return d?.data?.key === hoveredItemName ? gutter * 2 : gutter;
-      })
-      .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
-      .attr('height', (d) => Math.max((d.y1 - d.y0) || 0, 0));
-
-    treemapPieceMerged.select('rect.mask')
-      .transition()
-      .duration(300)
-      .attr('rx', 3)
-      .style('fill', 'white')
-      .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
-      .attr('height', (d) => Math.max((d.y1 - d.y0) || 0, 0));
+    if (isLargeDataset) {
+      treemapPieceMerged
+        .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
+        .attr('opacity', 1);
+      treemapPieceMerged.select('rect.box')
+        .attr('rx', 3)
+        .style('fill', (d) => getNodeColor(d))
+        .attr('stroke', 'black')
+        .attr('stroke-width', gutter)
+        .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
+        .attr('height', (d) => Math.max((d.y1 - d.y0) || 0, 0));
+      treemapPieceMerged.select('clipPath rect')
+        .attr('rx', 3)
+        .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
+        .attr('height', (d) => Math.max((d.y1 - d.y0) || 0, 0));
+    } else {
+      treemapPieceMerged
+        .transition().duration(300)
+        .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
+        .attr('opacity', 1);
+      treemapPieceMerged.select('rect.box')
+        .transition().duration(300)
+        .attr('rx', 3)
+        .style('fill', (d) => getNodeColor(d))
+        .attr('stroke', (d) => {
+          if (!hoveredItemName) return 'black';
+          return d?.data?.key === hoveredItemName ? 'white' : 'black';
+        })
+        .attr('stroke-width', (d) => {
+          if (!hoveredItemName) return gutter;
+          return d?.data?.key === hoveredItemName ? gutter * 2 : gutter;
+        })
+        .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
+        .attr('height', (d) => Math.max((d.y1 - d.y0) || 0, 0));
+      treemapPieceMerged.select('clipPath rect')
+        .transition().duration(300)
+        .attr('rx', 3)
+        .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
+        .attr('height', (d) => Math.max((d.y1 - d.y0) || 0, 0));
+    }
 
     treemapPieceMerged.select('text.text-name')
       .attr('x', 5)
       .attr('y', 8)
       .attr('dominant-baseline', 'hanging')
-      .text((d) => d?.data?.key);
+      .text((d) => (d.x1 - d.x0 > 40 && d.y1 - d.y0 > 14) ? d?.data?.key : '');
 
     treemapPieceMerged.select('text.text-value')
       .attr('x', 5)
@@ -342,7 +373,7 @@ function TreemapComponent({
       .attr('fill-opacity', 0.6)
       .attr('dominant-baseline', 'hanging')
       .attr('opacity', 1)
-      .text((d) => abbreviateNumber(d.value));
+      .text((d) => (d.x1 - d.x0 > 40 && d.y1 - d.y0 > 28) ? abbreviateNumber(d.value) : '');
 
     treemapPieceMerged.select('text.text-growth')
       .attr('x', 5)
@@ -351,6 +382,7 @@ function TreemapComponent({
       .attr('dominant-baseline', 'hanging')
       .attr('opacity', 1)
       .text((d) => {
+        if (d.x1 - d.x0 <= 40 || d.y1 - d.y0 <= 44) return '';
         const itemGrowth = d?.GROWTH;
         return itemGrowth != null ? `${itemGrowth >= 0 ? '+' : ''}${(itemGrowth * 100).toFixed(1)}%` : '';
       })
@@ -358,13 +390,10 @@ function TreemapComponent({
 
     treemapPieceGroup.exit()
       .transition()
-      .delay(300)
-      .duration(600)
+      .delay(transitionDuration)
+      .duration(isLargeDataset ? 0 : 600)
       .attr('opacity', 0)
-      // .delay(300)
       .remove();
-
-    ReactTooltip.rebuild();
   }, [
     dataKey,
     svgRef,
@@ -373,7 +402,6 @@ function TreemapComponent({
     height,
     padding,
     gutter,
-    sum,
     index,
     sumWindows,
     getNodeColor,
