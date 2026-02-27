@@ -12,6 +12,40 @@ import DropdownLink from './DropdownLink';
 
 const TOP_BAR_HEIGHT = 60;
 
+const BreadCrumbContainer = styled.div`
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  flex-wrap: wrap;
+  gap: 8px;
+  opacity: 0.6;
+  // overflow-x: auto;
+
+  button {
+    background-color: transparent;
+    border: none;
+    color: white;
+    padding: 0;
+    text-align: left;
+    font-family: inherit;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+`;
+
+const BreadCrumbItem = styled.button`
+  background-color: transparent;
+  border: none;
+  color: white;
+  padding: 0;
+  text-align: left;
+  font-family: inherit;
+  text-decoration: underline;
+  white-space: nowrap;
+`
+
 const RightSidebar = styled.div`
   display: flex;
   flex-direction: column;
@@ -36,8 +70,9 @@ const CreditLink = styled.a`
   color: white;
   text-align: center;
   margin-left: 16px;
-  height: 32px;
-  opacity: 0.4;
+  height: 40px;
+  width: 40px;
+  opacity: 0.6;
 
   &:hover {
     opacity: 1;
@@ -104,6 +139,8 @@ function DataView({
   popNavigationToLevel = (n) => { },
   setGroupBy = (axis) => { },
   defaultHierarchy = [],
+  currentYear=2569,
+  compareYear=2568,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState(['all']);
@@ -210,6 +247,16 @@ function DataView({
     return remainingGroupBys.map((x) => ({ value: x, label: THAI_NAME[x] || x }));
   }, [navigation, defaultHierarchy]);
 
+  const growth = useMemo(() => {
+    if (!data || !data.totals) return 0;
+    const current = data.totals["" + currentYear] || 0;
+    const previous = data.totals["" + compareYear] || 0;
+    if (previous === 0) {
+      return current > 0 ? 1 : 0;
+    }
+    return (current - previous) / previous;
+  }, [data, currentYear, compareYear]);
+
   return (
     <FullView>
       {/*
@@ -219,98 +266,89 @@ function DataView({
        */}
       <div
         style={{
-          height: TOP_BAR_HEIGHT,
-          display: 'flex',
-          alignItems: 'center',
-          paddingLeft: 16,
-          paddingRight: 16,
-          marginBottom: 8,
+          // height: TOP_BAR_HEIGHT,
+          padding: '16px',
+          paddingBottom: 0,
         }}
       >
-        <div
-          style={{
-            flexGrow: 1,
+        <div style={{
+            borderBottom: '1px solid rgba(255, 255, 255, 0.6)',
             display: 'flex',
             alignItems: 'center',
-            fontSize: 14,
-            // overflowX: 'auto',
+            width: '100%'
           }}
         >
-          {/* <button type="button" onClick={() => setDisplayMode('treemap')}>treemap</button>
-        <button type="button" onClick={() => setDisplayMode('bar')}>bar</button> */}
-
-          {navigation.map((x, i) => (
-            <React.Fragment key={navigation.slice(0, i + 1).map((n) => n.key).join('/')}>
-              <button
+          <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, paddingBottom: '16px'}}>
+            <BreadCrumbContainer>
+              <BreadCrumbItem
                 type="button"
-                onClick={() => {
-                  popNavigationToLevel(i);
-                }}
+                onClick={() => { popNavigationToLevel(0); }}
+                style={{ textDecoration: navigation.length <= 1 ? 'none' : 'underline' }}
+              >
+                งบประมาณปี {currentYear}
+              </BreadCrumbItem>
+              {navigation
+                .filter((x, i) => i > 0 && i < navigation.length - 1)
+                .map((x, i) => (
+                  <React.Fragment key={navigation.slice(0, i + 1).map((n) => n.key).join('/')}>
+                    <span>&gt;</span>
+                    <BreadCrumbItem
+                      type="button"
+                      onClick={() => { popNavigationToLevel(i); }}
+                    >
+                      {x.displayName.length < 20 ? x.displayName : `${x.displayName.substr(0, 20)}...`}
+                    </BreadCrumbItem>
+                  </React.Fragment>
+                ))
+              }
+            {/* </div> */}
+            </BreadCrumbContainer>
+            <h1 style={{ marginTop: '4px', marginBottom: '4px', fontSize: 24 }}>
+              {
+                navigation.length > 0
+                ? navigation[navigation.length - 1].displayName
+                : 'งบประมาณปี ' + currentYear
+              }
+            </h1>
+            <div style={{ fontSize: 14, opacity: 0.6 }}>
+              {data.totals?.["" + currentYear]?.toLocaleString() ?? 'N/A'} บาท {' '}
+              <span
                 style={{
-                  marginRight: 8,
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  color: 'white',
-                  padding: 0,
-                  textAlign: 'left',
+                  color: growth > 0 ? '#4f4' : growth < 0 ? '#f44' : 'inherit',
                 }}
               >
-                <small style={{ opacity: 0.6, whiteSpace: 'nowrap' }}>
-                  {i > 0 && THAI_NAME[navigation[i - 1].groupBy]}
-                </small>
-                {i > 0 && <br />}
-                <span style={{ fontFamily: 'inherit', textDecoration: i < navigation.length - 1 ? 'underline' : 'none', whiteSpace: 'nowrap' }}>
-                  {i === 0
-                    ? (
-                      searchQuery === ''
-                        ? 'หน่วยงานทั้งหมด'
-                        : `หน่วยงานทั้งหมดที่ชื่อมีคำว่า "${searchQuery}"`
-                    )
-                    : x.displayName.length < 20 ? x.displayName : `${x.displayName.substr(0, 20)}...`}
-                </span>
-              </button>
-              {i === navigation.length - 1
-                && (
-                  <>
-                    <small style={{ color: 'white', marginRight: 8, opacity: 0.6 }}>
-                      :
-                    </small>
-                    <div style={{ display: 'inline-block', opacity: 0.6 }}>
-                      แบ่งตาม
-                      {' '}
-                      <DropdownLink
-                        label={`${THAI_NAME[navigation[i].groupBy] || navigation[i].groupBy}`}
-                        options={availableGroupByOptions}
-                        value={navigation[i].groupBy}
-                        onChange={setGroupBy}
-                      />
-                    </div>
-                  </>
-                )}
-              {i < navigation.length - 1
-                && <span style={{ color: 'white', marginRight: 8 }}>&gt;</span>}
-            </React.Fragment>
-          ))}
-          {/* {JSON.stringify(filters)} */}
+                {'('}
+                {(growth >= 0 ? '+' : '') + (growth * 100).toFixed(1)}
+                {'% จากปีก่อน)'}
+              </span> — แบ่งตาม {' '}
+              <DropdownLink
+                label={`${THAI_NAME[navigation[navigation.length - 1].groupBy] || navigation[navigation.length - 1].groupBy}`}
+                options={availableGroupByOptions}
+                value={navigation[navigation.length - 1].groupBy}
+                onChange={setGroupBy}
+              />
+            </div>
+          </div>
+
+          {/* <div>
+            <label style={{ fontSize: 12, opacity: 0.6 }}>Filter</label>
+            <br />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="หน่วยรับงบหรือกระทรวง"
+            />
+          </div> */}
+          <CreditLink target="_blank" href="https://taepras.com">
+            {/* <small>Visualized by</small> */}
+            <ResponsiveImage
+              src={`${process.env.PUBLIC_URL}/tp_logo_dark.svg`}
+              alt="Thanawit Prasongpongchai taepras.com"
+              title="Thanawit Prasongpongchai"
+            />
+          </CreditLink>
         </div>
-        <div>
-          <label style={{ fontSize: 12, opacity: 0.6 }}>Filter</label>
-          <br />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="หน่วยรับงบหรือกระทรวง"
-          />
-        </div>
-        <CreditLink target="_blank" href="https://taepras.com">
-          {/* <small>Visualized by</small> */}
-          <ResponsiveImage
-            src={`${process.env.PUBLIC_URL}/tp_logo_dark.svg`}
-            alt="Thanawit Prasongpongchai taepras.com"
-            title="Thanawit Prasongpongchai"
-          />
-        </CreditLink>
       </div>
       <div style={{
         display: 'flex',
@@ -326,7 +364,7 @@ function DataView({
         >
           <Treemap
             ref={treemapRef}
-            title={navigation.length > 0 ? navigation[navigation.length - 1].displayName : 'รวมทุกหน่วยงาน'}
+            title={navigation[navigation.length - 1].displayName}
             data={data}
             isLoading={isLoading}
             filters={filters}
@@ -343,6 +381,8 @@ function DataView({
             sumWindows={sumWindows}
             hoveredItemName={hoveredItemName}
             navigateTo={navigateTo}
+            primaryYear={currentYear}
+            compareYear={compareYear}
           />
         </div>
         <RightSidebar>

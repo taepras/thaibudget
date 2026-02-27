@@ -4,25 +4,26 @@ import React, {
 import styled from 'styled-components';
 import { abbreviateNumber } from '../utils/numberFormat';
 import DropdownLink from './DropdownLink';
+import Ui from './BasicUi';
 
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  padding: 16px;
-  // background: #1a1a1a;
-  color: white;
-  font-size: 11px;
-  overflow-y: auto;
-  flex-grow: 1;
-  position: relative;
-`;
+// const Container = styled.div`
+//   display: flex;
+//   flex-direction: column;
+//   padding: 16px;
+//   // background: #1a1a1a;
+//   color: white;
+//   font-size: 11px;
+//   overflow-y: auto;
+//   flex-grow: 1;
+//   position: relative;
+// `;
 
-const Title = styled.h3`
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  opacity: 0.8;
-  word-break: break-word;
-`;
+// const Title = styled.h3`
+//   margin: 0 0 12px 0;
+//   font-size: 14px;
+//   opacity: 0.8;
+//   word-break: break-word;
+// `;
 
 const ListItem = styled.div`
   display: flex;
@@ -169,10 +170,10 @@ function PercentageChangeList({
   }, [data, primaryYear, compareYear, sortMode]);
 
   return (
-    <Container>
-      <Title style={{ marginBottom: 0 }}>
+    <Ui.Container>
+      <Ui.Title style={{ marginBottom: 0 }}>
         ความเปลี่ยนแปลง
-      </Title>
+      </Ui.Title>
       <div
         style={{
           marginBottom: '12px',
@@ -261,7 +262,7 @@ function PercentageChangeList({
       {changeData.length === 0 && (
         <div style={{ opacity: 0.5 }}>ไม่มีข้อมูล</div>
       )}
-    </Container>
+    </Ui.Container>
   );
 }
 

@@ -100,11 +100,11 @@ function App() {
   const [data, setData] = useState([]);
   const [isLoading, setLoading] = useState(true);
   const [isCompareView, setCompareView] = useState(false);
-  const [filters, setFilters] = useState(['all']);
   const [sumWindows, setSumWindows] = useState([0, 0]);
 
   const [currentYear, setCurrentYear] = useState(2569);
   const [compareYear, setCompareYear] = useState(2568);
+
   const [navigation, setNavigation] = useState([{ key: null, displayName: 'รวมทุกหน่วยงาน', groupBy: 'ministry' }]);
 
   const navigateTo = useCallback((key, displayName = null, groupBy = null) => {
@@ -243,6 +243,8 @@ function App() {
         }}
         >
           <DataView
+            currentYear={currentYear}
+            compareYear={compareYear}
             data={data}
             isLoading={isLoading}
             fullValue={maxSumValue}

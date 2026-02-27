@@ -8,6 +8,7 @@ import ReactTooltip from 'react-tooltip';
 import { useHistory, useLocation } from 'react-router-dom';
 import { abbreviateNumber } from '../utils/numberFormat';
 import FullView from './FullView';
+import Ui from './BasicUi';
 
 const BATCH_SIZE = 500;
 
@@ -257,7 +258,9 @@ function TreemapComponent({
   title = 'รวมทุกหน่วยงาน',
   hoveredItemName = null,
   colorScaleMaxValue = 0.3,
-  navigateTo = (key, displayName, groupBy) => { }
+  navigateTo = (key, displayName, groupBy) => { },
+  primaryYear = 0,
+  compareYear = 0,
 }, ref) {
   const {
     observe, width, height,
@@ -294,8 +297,6 @@ function TreemapComponent({
   }), []);
 
   const tailItemsRef = useRef([]);
-  const [primaryYear, setPrimaryYear] = useState(0);
-  const [compareYear, setCompareYear] = useState(0);
 
   const colorScale = useMemo(() => d3.scaleLinear()
     .domain([-colorScaleMaxValue, 0, colorScaleMaxValue])
@@ -375,9 +376,6 @@ function TreemapComponent({
 
     setOverlayOpen(false);
     setOverlayCount(BATCH_SIZE);
-
-    setPrimaryYear(data.years?.[0]);
-    setCompareYear(data.years?.[1]);
 
   }, [data]);
 
@@ -737,17 +735,18 @@ function TreemapComponent({
     >
       <div
         style={{
-          paddingLeft: 18,
+          padding: 16,
           fontSize: 12,
           marginBottom: -padding + 4,
           zIndex: 2,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'flex-start',
-          paddingRight: 18,
+          // paddingRight: 18,
         }}
       >
-        <div>
+        <Ui.Title>โครงสร้างงบ</Ui.Title>
+        {/* <div>
           <b style={{ whiteSpace: 'nowrap', fontSize: 16 }}>
             {title}
           </b>
@@ -767,7 +766,7 @@ function TreemapComponent({
               </span>
             )}
           </span>
-        </div>
+        </div> */}
         <div
           style={{
             display: 'flex',

@@ -2,22 +2,23 @@ import React, { useMemo } from 'react';
 import * as d3 from 'd3';
 import styled from 'styled-components';
 import { abbreviateNumber } from '../utils/numberFormat';
+import Ui from './BasicUi';
 
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  padding: 16px;
-  color: white;
-  font-size: 12px;
-  flex-grow: 1;
-`;
+// const Container = styled.div`
+//   display: flex;
+//   flex-direction: column;
+//   padding: 16px;
+//   color: white;
+//   font-size: 12px;
+//   flex-grow: 1;
+// `;
 
-const Title = styled.h3`
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  opacity: 0.8;
-  word-break: break-word;
-`;
+// const Title = styled.h3`
+//   margin: 0 0 12px 0;
+//   font-size: 14px;
+//   opacity: 0.8;
+//   word-break: break-word;
+// `;
 
 const ChartContainer = styled.div`
   display: flex;
@@ -77,18 +78,18 @@ function YearComparison({ data }) {
 
   if (yearData.length === 0) {
     return (
-      <Container>
-        <Title>ข้อมูลรายปี</Title>
+      <Ui.Container>
+        <Ui.Title>ข้อมูลรายปี</Ui.Title>
         <div style={{ opacity: 0.5 }}>ไม่มีข้อมูล</div>
-      </Container>
+      </Ui.Container>
     );
   }
 
   return (
-    <Container>
-      <Title>
+    <Ui.Container>
+      <Ui.Title>
         ข้อมูลรายปีย้อนหลัง
-      </Title>
+      </Ui.Title>
       <ChartContainer>
         {yearData.map((d) => (
           <div
@@ -121,7 +122,7 @@ function YearComparison({ data }) {
           </div>
         ))}
       </div> */}
-    </Container>
+    </Ui.Container>
   );
 }
 
