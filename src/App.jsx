@@ -106,6 +106,11 @@ function App() {
   const [currentYear, setCurrentYear] = useState(2569);
   const [compareYear, setCompareYear] = useState(2568);
 
+  const handleSetCurrentYear = useCallback((year) => {
+    setCurrentYear(year);
+    setCompareYear(Math.max(2565, year - 1));
+  }, []);
+
   const [navigation, setNavigation] = useState([{ key: null, displayName: 'รวมทุกหน่วยงาน', groupBy: 'ministry' }]);
 
   const navigateTo = useCallback((key, displayName = null, groupBy = null) => {
@@ -149,7 +154,7 @@ function App() {
       setLoading(true);
       const apiEndpoint = `${process.env.REACT_APP_API_URL}/api/breakdown`;
       const params = {
-        year: [currentYear, compareYear, 2567, 2566, 2565], // todo: dynamic years
+        year: [2569, 2568, 2567, 2566, 2565], // todo: dynamic years
         group: navigation[navigation.length - 1].groupBy,
       };
       for (let i = 0; i < navigation.length - 1; i++) {
@@ -282,6 +287,7 @@ function App() {
           <DataView
             currentYear={currentYear}
             compareYear={compareYear}
+            setCurrentYear={handleSetCurrentYear}
             data={data}
             isLoading={isLoading}
             fullValue={maxSumValue}

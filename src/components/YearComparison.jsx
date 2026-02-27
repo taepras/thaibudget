@@ -36,7 +36,6 @@ const BarSlot = styled.div`
 
 const Bar = styled.div`
   flex: 1;
-  background: linear-gradient(to top, #00ac00, #00ac00);
   border-radius: 2px 2px 0 0;
   display: flex;
   flex-direction: column;
@@ -63,7 +62,7 @@ const BarValue = styled.div`
   color: white;
 `;
 
-function YearComparison({ data }) {
+function YearComparison({ data, currentYear, onYearClick = () => {} }) {
   const yearData = useMemo(() => {
     if (!data || !data.totals) return [];
     return Object.entries(data.totals)
@@ -103,8 +102,13 @@ function YearComparison({ data }) {
           >
             <BarSlot>
               <Bar
-                style={{ height: `${(d.amount / maxAmount) * 100}%`, minHeight: '6px' }}
+                style={{
+                  height: `${(d.amount / maxAmount) * 100}%`,
+                  minHeight: '6px',
+                  background: String(d.year) === String(currentYear) ? '#00ac00' : '#555',
+                }}
                 title={`${d.year}: ${abbreviateNumber(d.amount)}`}
+                onClick={() => onYearClick(parseInt(d.year, 10))}
               >
                 <BarValue>{abbreviateNumber(d.amount)}</BarValue>
               </Bar>

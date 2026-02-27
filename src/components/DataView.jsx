@@ -140,6 +140,7 @@ function DataView({
   defaultHierarchy = [],
   currentYear=2569,
   compareYear=2568,
+  setCurrentYear = () => {},
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState(['all']);
@@ -323,7 +324,18 @@ function DataView({
               }
             {/* </div> */}
             </BreadCrumbContainer>
-            <h1 style={{ marginTop: '4px', marginBottom: '4px', fontSize: 24 }}>
+            <h1
+              style={{
+                marginTop: '4px',
+                marginBottom: '4px',
+                fontSize: 24,
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+                textOverflow: 'ellipsis',
+                minWidth: 0
+              }}
+              title={navigation[navigation.length - 1].displayName}
+            >
               {
                 navigation.length > 0
                 ? navigation[navigation.length - 1].displayName
@@ -332,15 +344,15 @@ function DataView({
             </h1>
             <div style={{ fontSize: 14, opacity: 0.6 }}>
               {data.totals?.["" + currentYear]?.toLocaleString() ?? 'N/A'} บาท {' '}
-              <span
+              {currentYear > 2565 && <span
                 style={{
                   color: growth > 0 ? '#4f4' : growth < 0 ? '#f44' : 'inherit',
                 }}
               >
                 {'('}
                 {(growth >= 0 ? '+' : '') + (growth * 100).toFixed(1)}
-                {'% จากปีก่อน)'}
-              </span> — แบ่งตาม {' '}
+                {'% จากปีก่อนหน้า)'}
+              </span>} — แบ่งตาม {' '}
               <DropdownLink
                 label={`${THAI_NAME[navigation[navigation.length - 1].groupBy] || navigation[navigation.length - 1].groupBy}`}
                 options={availableGroupByOptions}
@@ -409,6 +421,8 @@ function DataView({
           <div style={{ flexShrink: 0 }}>
             <YearComparison
               data={data}
+              currentYear={currentYear}
+              onYearClick={setCurrentYear}
             />
           </div>
           <PercentageChangeList
