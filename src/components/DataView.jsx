@@ -90,10 +90,11 @@ const CreditLink = styled.a`
 
 const GROUPABLE_KEYS = [
   'ministry',
+  'budgetary_unit',
   'budget_plan',
-  'output',
+  'project',
   'category',
-  // 'item'
+  'item'
 ];
 
 
@@ -118,12 +119,10 @@ const THAI_NAME = {
   ministry: 'กระทรวงหรือเทียบเท่า',
   budgetary_unit: 'หน่วยรับงบฯ',
   budget_plan: 'แผนงาน',
-  output_project: 'ผลผลิต/โครงการ',
+  output: 'ผลผลิต',
+  project: 'โครงการ',
+  category: 'ประเภทรายจ่าย',
   item: 'รายการ',
-  category_lv1: 'ประเภทงบ',
-  category_lv2: 'หมวดรายจ่าย',
-  category_lv3: 'ประเภทรายจ่าย',
-  category_lv4: 'รายการย่อย',
 };
 
 function DataView({
@@ -240,12 +239,26 @@ function DataView({
   }, []);
 
   const availableGroupByOptions = useMemo(() => {
-    const usedGroupBys = navigation.map((x) => x.groupBy);
-    const remainingGroupBys = defaultHierarchy
-      .filter((x) => GROUPABLE_KEYS.includes(x) && !usedGroupBys.includes(x));
-    console.log('availableGroupByOptions', navigation, usedGroupBys, remainingGroupBys);
-    return remainingGroupBys.map((x) => ({ value: x, label: THAI_NAME[x] || x }));
-  }, [navigation, defaultHierarchy]);
+    // Sequential axes (budgetary_unit, output, project, item) can only be reached
+    // by drilling down via tile clicks — they are never user-selectable in the dropdown.
+    // Only "root" axes the user can freely choose from the dropdown:
+    const selectableOptions = ['ministry', 'budget_plan', 'category'];
+
+    // Exclude any axis already locked in by a *parent* navigation level.
+    // The current level's groupBy is still changeable, so we only filter out parent levels.
+    const parentGroupBys = navigation.slice(0, -1).map((x) => x.groupBy);
+
+    const options = selectableOptions.filter((x) => !parentGroupBys.includes(x));
+    if (
+      !navigation
+        .map((x) => x.groupBy)
+        .includes(navigation[navigation.length - 1].groupBy)
+    ) {
+      options.push(navigation[navigation.length - 1].groupBy);
+    }
+    console.log('availableGroupByOptions', navigation, parentGroupBys, options);
+    return options.map((x) => ({ value: x, label: THAI_NAME[x] || x }));
+  }, [navigation]);
 
   const growth = useMemo(() => {
     if (!data || !data.totals) return 0;
@@ -256,6 +269,12 @@ function DataView({
     }
     return (current - previous) / previous;
   }, [data, currentYear, compareYear]);
+
+  // Get isLeafLevel from API response
+  // const isLeafLevel = data?.isLeafLevel ?? false;
+  const isLeafLevel = useMemo(
+    () => navigation[navigation.length - 1].groupBy === 'item' || data?.isLeafLevel, [navigation, data]
+  );
 
   return (
     <FullView>
@@ -294,7 +313,8 @@ function DataView({
                     <span>&gt;</span>
                     <BreadCrumbItem
                       type="button"
-                      onClick={() => { popNavigationToLevel(i); }}
+                      onClick={() => { popNavigationToLevel(i + 1); }}
+                      title={x.displayName}
                     >
                       {x.displayName.length < 20 ? x.displayName : `${x.displayName.substr(0, 20)}...`}
                     </BreadCrumbItem>
@@ -380,14 +400,17 @@ function DataView({
             sumWindows={sumWindows}
             hoveredItemName={hoveredItemName}
             navigateTo={navigateTo}
+            isLeafLevel={isLeafLevel}
             primaryYear={currentYear}
             compareYear={compareYear}
           />
         </div>
         <RightSidebar>
-          <YearComparison
-            data={data}
-          />
+          <div style={{ flexShrink: 0 }}>
+            <YearComparison
+              data={data}
+            />
+          </div>
           <PercentageChangeList
             data={data}
             hoveredItemName={hoveredItemName}

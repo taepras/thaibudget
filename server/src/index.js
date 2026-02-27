@@ -53,6 +53,11 @@ const breakdownGroups = {
     join: "join dim_category c on f.category_id = c.id",
     groupBy: "c.id, c.name, c.level",
   },
+  item: {
+    select: "f.item_description as id, f.item_description as name",
+    join: "",
+    groupBy: "f.item_description",
+  },
 };
 
 app.get("/api/breakdown", async (req, res) => {
@@ -206,28 +211,38 @@ app.get("/api/breakdown", async (req, res) => {
     const result = await query(sql, params);
 
     // Pivot flat (group, fiscal_year, amount) rows into { id, name, amounts: { year: amount } }
+    // Key by name (not id) so that rows sharing the same display name (e.g. multiple
+    // "ไม่ระบุ" categories with different ids) are merged into a single entry.
     const rowMap = new Map();
     const totals = {};
     for (const row of result.rows) {
       const yr = String(row.fiscal_year);
       totals[yr] = (totals[yr] || 0) + Number(row.total_amount);
 
-      const key = row.id ?? row.name;
-      if (!rowMap.has(key)) {
+      // Use name as the merge key so duplicate-named rows are aggregated together.
+      // Fall back to id only when name is absent.
+      const mergeKey = row.name ?? row.id;
+      if (!rowMap.has(mergeKey)) {
         // Copy all group-level fields (id, name, level, ...) except year/amount
         const { fiscal_year, total_amount, pct, ...groupFields } = row;
-        rowMap.set(key, { ...groupFields, amounts: {}, pct: {} });
+        rowMap.set(mergeKey, { ...groupFields, amounts: {}, pct: {} });
       }
-      const entry = rowMap.get(key);
-      entry.amounts[yr] = Number(row.total_amount);
-      entry.pct[yr] = Number(row.pct);
+      const entry = rowMap.get(mergeKey);
+      entry.amounts[yr] = (entry.amounts[yr] || 0) + Number(row.total_amount);
+      // pct will be re-derived on the client from totals; just accumulate here
+      entry.pct[yr] = (entry.pct[yr] || 0) + Number(row.pct);
     }
+
+    // Determine if this is a leaf level (no further drill-down possible)
+    // Item is the leaf level - representing individual budget line items
+    const isLeafLevel = group === 'item';
 
     return res.json({
       years,
       group,
       totals,
       rows: [...rowMap.values()],
+      isLeafLevel,
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });

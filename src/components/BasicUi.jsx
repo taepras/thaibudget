@@ -7,6 +7,8 @@ const Container = styled.div`
   color: white;
   font-size: 12px;
   flex-grow: 1;
+  min-height: 0;
+  overflow: hidden;
 `;
 
 const Title = styled.h3`

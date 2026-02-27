@@ -29,7 +29,7 @@ const ListItem = styled.div`
   display: flex;
   justify-content: space-between;
   padding: 8px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   align-items: center;
   cursor: pointer;
   transition: background-color 0.2s;

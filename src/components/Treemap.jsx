@@ -42,6 +42,7 @@ function TailOverlay({
   onLoadMore,      // () => void
   onClose,         // () => void
   navigateTo,      // (id, name) => void
+  isLeafLevel = false,
   colorScaleMaxValue = 0.3,
   padding = 12,
   gutter = 3,
@@ -119,7 +120,7 @@ function TailOverlay({
     const enter = pieces.enter().append('g').attr('class', 'sub-piece')
       .attr('clip-path', (d) => `url(#subclip-${d?.data?.value?.id ?? d?.data?.key?.replaceAll(/[ ()]/g, '')})`)
       .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
-      .style('cursor', 'pointer')
+      .style('cursor', isLeafLevel ? 'default' : 'pointer')
       .on('mouseenter', (e, d) => {
         d3.select(e.currentTarget)
           .select('rect.box')
@@ -141,7 +142,7 @@ function TailOverlay({
           onLoadMore();
           return;
         }
-        if (d?.data?.value?.id != null) {
+        if (!isLeafLevel && d?.data?.value?.id != null) {
           navigateTo(d.data.value.id, d.data.key);
           onClose();
         }
@@ -180,7 +181,7 @@ function TailOverlay({
     }); // end rAF
     // eslint-disable-next-line consistent-return
     return () => cancelAnimationFrame(raf);
-  }, [visibleItems, width, height, padding, gutter, getColor, navigateTo, onClose]);
+  }, [visibleItems, width, height, padding, gutter, getColor, navigateTo, isLeafLevel, onLoadMore, onClose]);
 
   return (
     // full-area backdrop — click on backdrop closes overlay
@@ -259,6 +260,7 @@ function TreemapComponent({
   hoveredItemName = null,
   colorScaleMaxValue = 0.3,
   navigateTo = (key, displayName, groupBy) => { },
+  isLeafLevel = false,
   primaryYear = 0,
   compareYear = 0,
 }, ref) {
@@ -276,6 +278,10 @@ function TreemapComponent({
   const svgRef = useRef(null);
   const navigateToRef = useRef(navigateTo);
   useEffect(() => { navigateToRef.current = navigateTo; }, [navigateTo]);
+  const isLeafLevelRef = useRef(isLeafLevel);
+  useEffect(() => { isLeafLevelRef.current = isLeafLevel; }, [isLeafLevel]);
+  const hoveredItemNameRef = useRef(hoveredItemName);
+  useEffect(() => { hoveredItemNameRef.current = hoveredItemName; }, [hoveredItemName]);
   const isNavigatingRef = useRef(false);
 
   useImperativeHandle(ref, () => ({
@@ -370,18 +376,38 @@ function TreemapComponent({
   useEffect(() => {
     // on new data change
     isNavigationRenderRef.current = false;
-    if (svgRef.current && !isNavigatingRef.current) {
-      d3.select(svgRef.current).select('g.chart-next').selectAll('*').remove();
+
+    if (svgRef.current) {
+      const chart = d3.select(svgRef.current).select('g.chart');
+      const chartNext = d3.select(svgRef.current).select('g.chart-next');
+
+      // Cancel any running transitions (zoom / fade from navigation click).
+      // Without this, the zoom on('end') callback would remove newly-rendered
+      // children from g.chart, leaving a black screen.
+      chart.interrupt();
+      chart.attr('transform', 'translate(0,0) scale(1,1)');
+      chart.style('opacity', 1);
+
+      chartNext.interrupt();
+      chartNext.selectAll('*').remove();
+      chartNext.attr('transform', 'translate(0,0) scale(1,1)');
     }
 
     setOverlayOpen(false);
     setOverlayCount(BATCH_SIZE);
 
+    // Clear navigation loading state when new data arrives
+    if (navLoadTimerRef.current) {
+      clearTimeout(navLoadTimerRef.current);
+      navLoadTimerRef.current = null;
+    }
+    setIsNavLoading(false);
+    isNavigatingRef.current = false;
   }, [data]);
 
   useEffect(() => {
     // update stroke
-    if (!svgRef.current) return;
+    if (!svgRef.current || isLeafLevel) return;
 
     d3.select(svgRef.current)
       .selectAll('g.treemap-piece')
@@ -394,7 +420,7 @@ function TreemapComponent({
         if (!hoveredItemName) return gutter;
         return d?.data?.key === hoveredItemName ? gutter * 2 : gutter;
       });
-  }, [hoveredItemName, gutter]);
+  }, [hoveredItemName, gutter, isLeafLevel]);
 
   // Zoom back to original scale when overlay closes
   useEffect(() => {
@@ -428,9 +454,12 @@ function TreemapComponent({
     });
     if (!svgRef.current) return;
 
-    const svgHeight = svgRef.current.clientHeight;
+    // Skip rAF during navigation - render immediately since spinner is already shown
+    const renderNow = isNavigatingRef.current;
+    const performRender = () => {
+      const svgHeight = svgRef.current.clientHeight;
 
-    const getValue = (d) => d?.value?.value ?? d?.value ?? 0;
+      const getValue = (d) => d?.value?.value ?? d?.value ?? 0;
 
     const root = d3.hierarchy(nestedData, (d) => d?.values)
       .sum((d) => getValue(d))
@@ -447,7 +476,7 @@ function TreemapComponent({
 
     const newSum = nestedData.values.reduce((a, b) => a + (b.value?.value ?? b.value ?? 0), 0);
 
-    const transitionDuration = 300;
+    const transitionDuration = 200;
 
     // Always render at proportional scale into g.chart
     const fullVal = data.totals?.[data.years?.[0]];
@@ -500,7 +529,8 @@ function TreemapComponent({
       .attr('class', 'treemap-piece')
       .attr('id', (d) => `${d?.data?.key?.replaceAll(/[ ()]/g, '')}`)
       .attr('clip-path', (d) => `url(#clip-${d?.data?.key?.replaceAll(/[ ()]/g, '')})`)
-      .attr('transform', (d) => `translate(${d.x0 || 0},${d.y0 || 0})`);
+      .attr('transform', (d) => `translate(${d.x0 || 0},${d.y0 || 0})`)
+      .style('cursor', isLeafLevel ? 'default' : 'pointer');
 
     treemapPieceGroupEnter
       .append('rect')
@@ -540,9 +570,11 @@ function TreemapComponent({
 
     treemapPieceMerged
       .on('mouseenter', (e, d) => {
-        d3.select(e.currentTarget)
-          .select('rect.box')
-          .style('filter', 'drop-shadow(0 0 3px rgba(255,255,255,0.8))');
+        if (!isLeafLevelRef.current) {
+          d3.select(e.currentTarget)
+            .select('rect.box')
+            .style('filter', 'drop-shadow(0 0 3px rgba(255,255,255,0.8))');
+        }
 
         const nodeGrowth = d?.GROWTH;
         const lastYear = d?.AMOUNT_LASTYEAR;
@@ -560,6 +592,7 @@ function TreemapComponent({
       })
       .on('click', null)
       .on('click', (e, d) => {
+        if (isLeafLevelRef.current) return;
         // Current tile dimensions (before zoom)
         const oldTileWidth = d.x1 - d.x0 - gutter;
         const oldTileHeight = d.y1 - d.y0 - gutter;
@@ -600,7 +633,7 @@ function TreemapComponent({
 
             currentChart
               .transition()
-              .duration(500)
+              .duration(300)
               .style('opacity', 0)
               .on('end', () => {
                 const oldChildren = currentChart.selectChildren().nodes();
@@ -622,12 +655,15 @@ function TreemapComponent({
           return;
         }
 
-        isNavigatingRef.current = true;
-        navLoadTimerRef.current = setTimeout(() => {
-          if (isNavigatingRef.current) setIsNavLoading(true);
-        }, 300);
-        // Start navigation immediately so the new chart can render while the zoom runs.
-        navigateToRef.current(d?.data?.value?.id, d?.data?.key);
+        // Only navigate if not at leaf level
+        if (!isLeafLevel) {
+          isNavigatingRef.current = true;
+          navLoadTimerRef.current = setTimeout(() => {
+            if (isNavigatingRef.current) setIsNavLoading(true);
+          }, 300);
+          // Start navigation immediately so the new chart can render while the zoom runs.
+          navigateToRef.current(d?.data?.value?.id, d?.data?.key);
+        }
       });
 
     treemapPieceMerged
@@ -637,12 +673,12 @@ function TreemapComponent({
       .attr('rx', 3)
       .style('fill', (d) => getNodeColor(d))
       .attr('stroke', (d) => {
-        if (!hoveredItemName) return 'black';
-        return d?.data?.key === hoveredItemName ? 'white' : 'black';
+        if (isLeafLevelRef.current || !hoveredItemNameRef.current) return 'black';
+        return d?.data?.key === hoveredItemNameRef.current ? 'white' : 'black';
       })
       .attr('stroke-width', (d) => {
-        if (!hoveredItemName) return gutter;
-        return d?.data?.key === hoveredItemName ? gutter * 2 : gutter;
+        if (isLeafLevelRef.current || !hoveredItemNameRef.current) return gutter;
+        return d?.data?.key === hoveredItemNameRef.current ? gutter * 2 : gutter;
       })
       .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
       .attr('height', (d) => Math.max((d.y1 - d.y0) || 0, 0));
@@ -694,20 +730,30 @@ function TreemapComponent({
     if (isNavigatingRef.current) {
       const { dx, dy, sx, sy } = zoomStateRef.current;
       const nextChart = d3.select(svgRef.current).select('g.chart-next');
-      const nextNode = nextChart.node();
-      const tileNode = zoomTileRef.current;
+      // chart-next is already in wrapper, just scale it to appear normal within the zoomed view
+      nextChart.attr('transform', `translate(${dx},${dy}) scale(${1 / sx},${1 / sy})`)
+    }
+    };
 
-      if (tileNode && nextNode) {
-        // Make chart-next a child of the clicked tile so it starts at tile scale.
-        tileNode.appendChild(nextNode);
-        nextChart.attr('transform', `translate(${gutter / 2}, ${gutter / 2}) scale(${1 / sx},${1 / sy})`)
-      } else {
-        // Fallback: position chart-next in the wrapper at the tile bounds.
-        nextChart.attr('transform', `translate(${dx},${dy}) scale(${1 / sx},${1 / sy})`)
+    // If navigating and chart-next is nested in a tile from zoom setup, move it back to wrapper
+    if (isNavigatingRef.current) {
+      const wrapperNode = d3.select(svgRef.current).select('g.chart-wrapper').node();
+      const nextChartNode = d3.select(svgRef.current).select('g.chart-next').node();
+      if (nextChartNode && nextChartNode.parentNode !== wrapperNode) {
+        nextChartNode.setAttribute('transform', 'translate(0,0) scale(1,1)');
+        wrapperNode.appendChild(nextChartNode);
       }
     }
 
-    return;
+    if (renderNow) {
+      // During navigation, render immediately - don't wait for rAF
+      performRender();
+    } else {
+      // On initial load/data change, use rAF to let React paint spinner first
+      const raf = requestAnimationFrame(performRender);
+      // eslint-disable-next-line consistent-return
+      return () => cancelAnimationFrame(raf);
+    }
   }, [
     svgRef,
     data,
@@ -718,6 +764,7 @@ function TreemapComponent({
     gutter,
     getNodeColor,
     hoveredItemName,
+    isLeafLevel,
   ]);
 
   return (
@@ -736,6 +783,7 @@ function TreemapComponent({
       <div
         style={{
           padding: 16,
+          paddingBottom: 8,
           fontSize: 12,
           marginBottom: -padding + 4,
           zIndex: 2,
@@ -857,6 +905,7 @@ function TreemapComponent({
             onLoadMore={() => setOverlayCount((c) => c + BATCH_SIZE)}
             onClose={() => setOverlayOpen(false)}
             navigateTo={navigateToRef.current}
+            isLeafLevel={isLeafLevel}
             colorScaleMaxValue={colorScaleMaxValue}
             padding={padding}
             gutter={gutter}

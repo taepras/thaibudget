@@ -92,6 +92,7 @@ const DEFAULT_HIERARCHY = [
   'budgetary_unit',
   'budget_plan',
   'output',
+  'project',
   'category',
   'item'
 ];
@@ -110,10 +111,19 @@ function App() {
   const navigateTo = useCallback((key, displayName = null, groupBy = null) => {
     if (displayName === null) displayName = key;
     if (groupBy === null) {
-      const usedGroupBys = navigation.map((x) => x.groupBy);
-      groupBy = DEFAULT_HIERARCHY.find((x) => !usedGroupBys.includes(x));
+      const currentGroupBy = navigation[navigation.length - 1]?.groupBy;
+
+      // Always advance to the next position in the hierarchy.
+      // Using "first unused" would loop when the skip logic has replaced entries:
+      // e.g. output→project→category replaces nav entries, so output/project
+      // disappear from usedGroupBys and would be picked again on next click.
+      if (currentGroupBy === 'ministry') {
+        groupBy = 'budgetary_unit';
+      } else {
+        const currentIdx = DEFAULT_HIERARCHY.indexOf(currentGroupBy);
+        groupBy = currentIdx >= 0 ? DEFAULT_HIERARCHY[currentIdx + 1] : null;
+      }
     }
-    console.log('😡 navigating to', key, groupBy);
     setNavigation([...navigation, { key, groupBy, displayName }]);
   }, [navigation, setNavigation]);
 
@@ -133,7 +143,10 @@ function App() {
 
   useEffect(() => {
     console.log('🗺️ navigation updated', navigation);
+    let cancelled = false;
+
     const fetchData = async () => {
+      setLoading(true);
       const apiEndpoint = `${process.env.REACT_APP_API_URL}/api/breakdown`;
       const params = {
         year: [currentYear, compareYear, 2567, 2566, 2565], // todo: dynamic years
@@ -149,8 +162,6 @@ function App() {
           params[`filter${groupByCamelCase}Id`] = navigation[i + 1].key;
         }
       }
-      // if (navigation.length > 1) { params.filterMinistryId = navigation[navigation.length - 1].key; }
-
 
       const url = new URL(apiEndpoint);
       const searchParams = new URLSearchParams();
@@ -166,18 +177,43 @@ function App() {
       if (!response.ok) throw new Error('API error');
       const result = await response.json();
 
+      // Discard result if this effect was superseded by a newer navigation/year change
+      if (cancelled) return;
+
       console.log('✅ api data loaded', result);
+
+      // Handle empty rows: skip to next level in hierarchy if possible
+      if (result.rows && result.rows.length === 0 && !result.isLeafLevel) {
+        console.log('⚠️ Empty rows at non-leaf level, advancing to next grouping');
+        // Always advance *forward* from the current groupBy position in the hierarchy.
+        // Using "first unused" would loop: e.g. output→project (replacing 'output' in nav)
+        // then project→output (since 'output' is now gone from usedGroupBys).
+        setNavigation((nav) => {
+          const currentGroupBy = nav[nav.length - 1].groupBy;
+          const nextGroupBy = currentGroupBy === 'ministry'
+            ? 'budgetary_unit'
+            : currentGroupBy === 'budget_plan'
+              ? 'output'
+              : DEFAULT_HIERARCHY.filter((x) => !nav.map((n) => n.groupBy).includes(x))[0];
+
+          // const currentIdx = DEFAULT_HIERARCHY.indexOf(currentGroupBy);
+          // const nextGroupBy = currentIdx >= 0 ? DEFAULT_HIERARCHY[currentIdx + 1] : null;
+          if (!nextGroupBy) return nav; // already at deepest level, nothing to skip
+          const newNav = [...nav];
+          newNav[newNav.length - 1] = { ...newNav[newNav.length - 1], groupBy: nextGroupBy };
+          return newNav;
+        });
+        return; // Let the effect re-run with new groupBy
+      }
 
       setData(result);
       setLoading(false);
     };
     fetchData();
 
-    // d3.csv(`${process.env.PUBLIC_URL}/data-all-years.csv`).then((d) => {
-    //   setData(d);
-    //   setLoading(false);
-    // });
-  }, [currentYear, navigation]);
+    // Cancel stale in-flight fetch when navigation/year changes before it resolves
+    return () => { cancelled = true; };
+  }, [currentYear, compareYear, navigation]);
 
   const setSumWindowsIdx = (i, value) => {
     const temp = [...sumWindows];

@@ -1,8 +1,17 @@
 # Thai Budget API Documentation
 
-## Overview
+## Recommended Navigation Hierarchy
 
-The Thai Budget API provides access to Thai government budget data across fiscal years 2565-2569 B.E. The API uses a star schema design where budget data is organized by dimensions (Ministry, Budgetary Unit, Budget Plan, Output, Project, and Category) with support for hierarchical category filtering.
+The following hierarchy provides a logical drill-down path through the budget data:
+
+1. **ministry** (กระทรวง) - Government ministries
+2. **budgetary_unit** (หน่วยรับงบฯ) - Budgetary units within ministries
+3. **budget_plan** (แผนงาน) - Budget plans/programs
+4. **project** (โครงการ) - Projects within budget plans
+5. **category** (ประเภทรายจ่าย) - Budget expense categories (hierarchical)
+6. **item** (รายการ) - Aggregated by item description (leaf level, not clickable). Each tile represents all budget line items with the same description.
+
+Note: Users can also explore alternative hierarchies using the grouping selector, but the above provides the most common navigation path.
 
 ## Base URL
 
@@ -47,7 +56,7 @@ Returns aggregated budget data grouped by a specified dimension, with optional f
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `year` | integer | Yes | Fiscal year (2565-2569) |
-| `group` | string | Yes | Grouping dimension: `ministry`, `budgetary_unit`, `budget_plan`, `output`, `project`, or `category` |
+| `group` | string | Yes | Grouping dimension: `ministry`, `budgetary_unit`, `budget_plan`, `output`, `project`, `category`, or `item` |
 | `filterMinistryId` | integer | No | Filter by ministry ID |
 | `filterBudgetaryUnitId` | integer | No | Filter by budgetary unit ID |
 | `filterBudgetPlanId` | integer | No | Filter by budget plan ID |
@@ -74,7 +83,8 @@ Returns aggregated budget data grouped by a specified dimension, with optional f
       "total_amount": "756000000000.00",
       "pct": 0.19989
     }
-  ]
+  ],
+  "isLeafLevel": false
 }
 ```
 
@@ -88,6 +98,7 @@ Returns aggregated budget data grouped by a specified dimension, with optional f
   - `name`: Dimension name (or `level` for category group)
   - `total_amount`: Sum of budget amounts (as string decimal)
   - `pct`: Percentage of total (as decimal, 0-1)
+- `isLeafLevel`: Boolean indicating if this is a leaf level (no further drill-down possible). Currently `true` when `group === 'item'`, where each row represents an individual budget line item
 
 **Error Responses:**
 

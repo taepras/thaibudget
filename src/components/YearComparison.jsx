@@ -24,7 +24,7 @@ const ChartContainer = styled.div`
   display: flex;
   align-items: flex-end;
   gap: 4px;
-  height: 180px;
+  height: 176px;
 `;
 
 const BarSlot = styled.div`

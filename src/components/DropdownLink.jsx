@@ -118,6 +118,13 @@ function DropdownLink({
     document.body,
   );
 
+  // If there's only one (or zero) options, nothing to choose — render static text
+  if (options.length <= 1) {
+    return (
+      <span style={{ fontStyle: 'italic' }}>{label}</span>
+    );
+  }
+
   return (
     <Container>
       <Toggle ref={toggleRef} onClick={() => setShowMenu(!showMenu)}>
