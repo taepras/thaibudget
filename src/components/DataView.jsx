@@ -70,8 +70,8 @@ const CreditLink = styled.a`
   color: white;
   text-align: center;
   margin-left: 16px;
-  height: 40px;
-  width: 40px;
+  height: 48px;
+  width: 48px;
   opacity: 0.6;
 
   &:hover {
@@ -272,9 +272,9 @@ function DataView({
         }}
       >
         <div style={{
-            borderBottom: '1px solid rgba(255, 255, 255, 0.6)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'start',
             width: '100%'
           }}
         >
@@ -341,7 +341,6 @@ function DataView({
             />
           </div> */}
           <CreditLink target="_blank" href="https://taepras.com">
-            {/* <small>Visualized by</small> */}
             <ResponsiveImage
               src={`${process.env.PUBLIC_URL}/tp_logo_dark.svg`}
               alt="Thanawit Prasongpongchai taepras.com"

@@ -300,7 +300,7 @@ function TreemapComponent({
 
   const colorScale = useMemo(() => d3.scaleLinear()
     .domain([-colorScaleMaxValue, 0, colorScaleMaxValue])
-    .range(['#cf0000ff', '#333333', '#00ac00ff'])
+    .range(['#cf0000ff', '#222222', '#00ac00ff'])
     .clamp(true), [colorScaleMaxValue]);
 
   const getNodeColor = useCallback((node) => {
@@ -782,7 +782,7 @@ function TreemapComponent({
             style={{
               width: '80px',
               height: '10px',
-              background: 'linear-gradient(to right, #cf0000, #333333, #00ac00)',
+              background: 'linear-gradient(to right, #cf0000, #222222, #00ac00)',
             }}
           />
           <span>{`+${colorScaleMaxValue * 100}%`}</span>

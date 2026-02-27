@@ -123,6 +123,7 @@ function App() {
   }, [navigation, setNavigation]);
 
   const setGroupBy = useCallback((groupBy) => {
+    console.log('😡 set groupBy', groupBy);
     setNavigation((nav) => {
       const newNav = [...nav];
       newNav[newNav.length - 1].groupBy = groupBy;

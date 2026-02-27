@@ -74,6 +74,7 @@ function DropdownLink({
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const toggleRef = useRef(null);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     if (showMenu && toggleRef.current) {
@@ -90,7 +91,8 @@ function DropdownLink({
   useEffect(() => {
     if (!showMenu) return undefined;
     const handler = (e) => {
-      if (toggleRef.current && !toggleRef.current.contains(e.target)) {
+      if (toggleRef.current && !toggleRef.current.contains(e.target) &&
+          menuRef.current && !menuRef.current.contains(e.target)) {
         setShowMenu(false);
       }
     };
@@ -99,7 +101,7 @@ function DropdownLink({
   }, [showMenu]);
 
   const menu = showMenu && ReactDOM.createPortal(
-    <Menu style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }}>
+    <Menu ref={menuRef} style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }}>
       {options.map((option) => (
         <MenuItem
           key={option.value}
