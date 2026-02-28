@@ -1,0 +1,5 @@
+ total_facts | with_ministry | with_budget_plan | with_category | with_output | with_project 
+-------------+---------------+------------------+---------------+-------------+--------------
+       49688 |         49688 |            49640 |         49688 |       27108 |        20231
+(1 row)
+

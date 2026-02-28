@@ -36,7 +36,7 @@ npm run dev
 ```bash
 cd server
 npm install
-npm run import -- --file ../public/data-all-years.csv --reset
+npm run import -- --file ../data/data-all-years.csv --reset
 ```
 
 ## Breakdown endpoint

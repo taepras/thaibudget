@@ -34,24 +34,26 @@ const breakdownGroups = {
     groupBy: "bu.id, bu.name",
   },
   budget_plan: {
-    select: "bp.id as id, bp.name as name",
-    join: "join dim_budget_plan bp on f.budget_plan_id = bp.id",
+    select: "coalesce(bp.id, -1) as id, coalesce(bp.name, 'ไม่ระบุแผนงาน') as name",
+    join: "left join dim_budget_plan bp on f.budget_plan_id = bp.id",
     groupBy: "bp.id, bp.name",
   },
   output: {
-    select: "o.id as id, o.name as name",
-    join: "join dim_output o on f.output_id = o.id",
+    select: "coalesce(o.id, -1) as id, coalesce(o.name, 'ไม่ระบุผลผลิต') as name",
+    join: "left join dim_output o on f.output_id = o.id",
     groupBy: "o.id, o.name",
   },
   project: {
-    select: "p.id as id, p.name as name",
-    join: "join dim_project p on f.project_id = p.id",
+    select: "coalesce(p.id, -1) as id, coalesce(p.name, 'ไม่ระบุโครงการ') as name",
+    join: "left join dim_project p on f.project_id = p.id",
     groupBy: "p.id, p.name",
   },
   category: {
-    select: "c.id as id, c.name as name, c.level as level",
-    join: "join dim_category c on f.category_id = c.id",
+    select: "coalesce(c.id, -1) as id, coalesce(c.name, 'ไม่ระบุประเภทรายจ่าย') as name, coalesce(c.level, 0) as level",
+    join: "left join dim_category_path cp_group on f.category_id = cp_group.descendant_id left join dim_category c on cp_group.ancestor_id = c.id",
     groupBy: "c.id, c.name, c.level",
+    levelFilter: true, // This group supports level filtering
+    includeNullCategory: true, // Include facts without category path entries
   },
   item: {
     select: "f.item_description as id, f.item_description as name",
@@ -96,7 +98,7 @@ app.get("/api/breakdown", async (req, res) => {
     project: "join dim_project p on f.project_id = p.id",
     category: "join dim_category c on f.category_id = c.id",
     category_path:
-      "join dim_category_path cp on f.category_id = cp.descendant_id",
+      "join dim_category_path cp_filter on f.category_id = cp_filter.descendant_id",
   };
 
   const addJoin = (sql) => {
@@ -183,15 +185,55 @@ app.get("/api/breakdown", async (req, res) => {
   }
 
   const filterCategoryId = parseId(req.query.filterCategoryId);
+  let filterCategoryParamIndex = null;
   if (req.query.filterCategoryId && filterCategoryId === null) {
     return res
       .status(400)
       .json({ error: "filterCategoryId must be an integer" });
   }
   if (filterCategoryId !== null) {
+    // Add the filter join (separate from grouping join for category)
     joins.add(joinMap.category_path);
     params.push(filterCategoryId);
-    conditions.push(`cp.ancestor_id = $${params.length}`);
+    filterCategoryParamIndex = params.length;
+    conditions.push(`cp_filter.ancestor_id = $${params.length}`);
+  }
+
+  // For category grouping, default to level 1 (top-level categories) unless specified
+  if (group === 'category') {
+    let targetLevel = 1;
+
+    // If filtering by a parent category, show the next level down
+    if (filterCategoryId !== null) {
+      const parentLevelResult = await query(
+        'select level from dim_category where id = $1',
+        [filterCategoryId]
+      );
+      if (parentLevelResult.rows.length > 0) {
+        targetLevel = parentLevelResult.rows[0].level + 1;
+      }
+    }
+
+    // Allow manual override via categoryLevel parameter
+    if (req.query.categoryLevel) {
+      const manualLevel = parseInt(req.query.categoryLevel, 10);
+      if (Number.isInteger(manualLevel) && manualLevel > 0) {
+        targetLevel = manualLevel;
+      }
+    }
+
+    params.push(targetLevel);
+    const targetLevelParamIndex = params.length;
+
+    // When drilling into a parent category, include rows posted directly on that parent
+    // (i.e. no deeper subcategory) so child breakdown totals stay consistent.
+    if (filterCategoryParamIndex !== null) {
+      conditions.push(
+        `(c.level = $${targetLevelParamIndex} or f.category_id = $${filterCategoryParamIndex})`
+      );
+    } else {
+      conditions.push(`(c.level = $${targetLevelParamIndex} or c.level is null)`);
+    }
   }
 
   const sql = `

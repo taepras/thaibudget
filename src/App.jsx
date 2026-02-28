@@ -118,11 +118,10 @@ function App() {
     if (groupBy === null) {
       const currentGroupBy = navigation[navigation.length - 1]?.groupBy;
 
-      // Always advance to the next position in the hierarchy.
-      // Using "first unused" would loop when the skip logic has replaced entries:
-      // e.g. output→project→category replaces nav entries, so output/project
-      // disappear from usedGroupBys and would be picked again on next click.
-      if (currentGroupBy === 'ministry') {
+      // For category drilling, stay in category group (drill down to next level)
+      if (currentGroupBy === 'category') {
+        groupBy = 'category';
+      } else if (currentGroupBy === 'ministry') {
         groupBy = 'budgetary_unit';
       } else {
         const currentIdx = DEFAULT_HIERARCHY.indexOf(currentGroupBy);

@@ -8,8 +8,8 @@ const csv = require('csv-parser');
  */
 
 // Normalize ministry names to canonical form
-function normalizeMinistry(ministry) {
-    if (!ministry) return 'ไม่ระบุ';
+function normalizeDescription(ministry) {
+    if (!ministry) return null;
 
     // if ministry name contains a trailing money amount, remove it (e.g. "กระทรวงการคลัง 1,000,000 บาท" -> "กระทรวงการคลัง")
     ministry = ministry.replace(/\s*\d{1,3}(,\d{3})*(\.\d+)?(\s*บาท)?$/, '').trim();
@@ -67,18 +67,18 @@ const headersByYear = {
 // Helper function to create a unique key from a row
 function createKey(row) {
     return [
-        normalizeMinistry(row.MINISTRY),
-        normalizeMinistry(row.BUDGETARY_UNIT),
-        normalizeMinistry(row.BUDGET_PLAN),
+        normalizeDescription(row.MINISTRY),
+        normalizeDescription(row.BUDGETARY_UNIT),
+        normalizeDescription(row.BUDGET_PLAN) ?? 'ไม่ระบุแผนงาน',
         row.CROSS_FUNC,
-        row.OUTPUT,
-        row.PROJECT,
-        row.CATEGORY_LV1,
-        row.CATEGORY_LV2,
-        row.CATEGORY_LV3,
-        row.CATEGORY_LV4,
-        row.CATEGORY_LV5,
-        row.CATEGORY_LV6,
+        normalizeDescription(row.OUTPUT),
+        normalizeDescription(row.PROJECT),
+        normalizeDescription(row.CATEGORY_LV1) ?? 'ไม่ระบุประเภท',
+        normalizeDescription(row.CATEGORY_LV2),
+        normalizeDescription(row.CATEGORY_LV3),
+        normalizeDescription(row.CATEGORY_LV4),
+        normalizeDescription(row.CATEGORY_LV5),
+        normalizeDescription(row.CATEGORY_LV6),
         row.ITEM_DESCRIPTION
     ].join('||');
 }
@@ -124,6 +124,10 @@ const REPLACEMENTS = [
     ['ไชเบอร์', 'ไซเบอร์'],  // OCR: ซ (so) misread as ช (cho) in ไซเบอร์ (cyber)
     ['ทรัพยากรนำ', 'ทรัพยากรน้ำ'],
     ['บริการจัดการ', 'บริหารจัดการ'],
+    ['งบรายจ่ายอิน', 'งบรายจ่ายอื่น'],
+    ['งบรายจ่ายอิ่น', 'งบรายจ่ายอื่น'],
+    ['อุ ดหนุน', 'อุดหนุน'],
+    ['ดาเนินงาน', 'ดำเนินงาน'],
 ];
 
 // Strip spaces, entire (...) groups, unclosed ( fragments, and optional การ for fuzzy comparison.
@@ -241,22 +245,18 @@ function readCsvIntoMap(filePath, targetMap, yearKey, setHeaders) {
                     setHeaders(Object.keys(row));
                     seenFirstRow = true;
                 }
+
                 // Normalize ministry, budgetary unit, and budget plan names in the row
                 // eslint-disable-next-line no-param-reassign
-                row.MINISTRY = normalizeMinistry(row.MINISTRY);
-                // eslint-disable-next-line no-param-reassign
-                row.BUDGETARY_UNIT = normalizeMinistry(row.BUDGETARY_UNIT);
-                // eslint-disable-next-line no-param-reassign
-                row.BUDGET_PLAN = normalizeMinistry(row.BUDGET_PLAN);
-                // eslint-disable-next-line no-param-reassign
-                row.CATEGORY_LV1 = normalizeMinistry(row.CATEGORY_LV1);
-                // eslint-disable-next-line no-param-reassign
-                row.CATEGORY_LV2 = normalizeMinistry(row.CATEGORY_LV2);
-                // eslint-disable-next-line no-param-reassign
-                row.CATEGORY_LV3 = normalizeMinistry(row.CATEGORY_LV3);
-                // eslint-disable-next-line no-param-reassign
-                row.CATEGORY_LV4 = normalizeMinistry(row.CATEGORY_LV4);
-
+                row.MINISTRY = normalizeDescription(row.MINISTRY);
+                row.BUDGETARY_UNIT = normalizeDescription(row.BUDGETARY_UNIT);
+                row.BUDGET_PLAN = normalizeDescription(row.BUDGET_PLAN) ?? 'ไม่ระบุแผนงาน';
+                row.OUTPUT = normalizeDescription(row.OUTPUT);
+                row.PROJECT = normalizeDescription(row.PROJECT);
+                row.CATEGORY_LV1 = normalizeDescription(row.CATEGORY_LV1) ?? 'ไม่ระบุประเภท';
+                row.CATEGORY_LV2 = normalizeDescription(row.CATEGORY_LV2);
+                row.CATEGORY_LV3 = normalizeDescription(row.CATEGORY_LV3);
+                row.CATEGORY_LV4 = normalizeDescription(row.CATEGORY_LV4);
 
                 // console.log(row.FISCAL_YEAR, +yearKey - 543, row.FISCAL_YEAR == +yearKey - 543 ? '✅' : '❌');
                 if (row.FISCAL_YEAR != +yearKey - 543) {
@@ -315,7 +315,7 @@ function escapeCsvValue(value) {
 }
 
 function writeOuterJoin() {
-    const outputFile = path.join(__dirname, '../public/data-all-years.csv');
+    const outputFile = path.join(__dirname, '../data/data-all-years.csv');
     const writeStream = fs.createWriteStream(outputFile);
     const headers = buildHeaders();
     writeStream.write(`${headers.map(escapeCsvValue).join(',')}\n`);
@@ -370,11 +370,11 @@ function writeOuterJoin() {
 }
 
 Promise.all([
-    readCsvIntoMap(path.join(__dirname, '../public/data-65.csv'), dataMapsByYear['2565'], '2565', (h) => { headersByYear['2565'] = h; }),
-    readCsvIntoMap(path.join(__dirname, '../public/data-66.csv'), dataMapsByYear['2566'], '2566', (h) => { headersByYear['2566'] = h; }),
-    readCsvIntoMap(path.join(__dirname, '../public/data-67.csv'), dataMapsByYear['2567'], '2567', (h) => { headersByYear['2567'] = h; }),
-    readCsvIntoMap(path.join(__dirname, '../public/data-68.csv'), dataMapsByYear['2568'], '2568', (h) => { headersByYear['2568'] = h; }),
-    readCsvIntoMap(path.join(__dirname, '../public/data-69.csv'), dataMapsByYear['2569'], '2569', (h) => { headersByYear['2569'] = h; }),
+    readCsvIntoMap(path.join(__dirname, '../data/data-65.csv'), dataMapsByYear['2565'], '2565', (h) => { headersByYear['2565'] = h; }),
+    readCsvIntoMap(path.join(__dirname, '../data/data-66.csv'), dataMapsByYear['2566'], '2566', (h) => { headersByYear['2566'] = h; }),
+    readCsvIntoMap(path.join(__dirname, '../data/data-67.csv'), dataMapsByYear['2567'], '2567', (h) => { headersByYear['2567'] = h; }),
+    readCsvIntoMap(path.join(__dirname, '../data/data-68.csv'), dataMapsByYear['2568'], '2568', (h) => { headersByYear['2568'] = h; }),
+    readCsvIntoMap(path.join(__dirname, '../data/data-69.csv'), dataMapsByYear['2569'], '2569', (h) => { headersByYear['2569'] = h; }),
 ])
     .then(() => {
         console.log('Finished reading all data files');

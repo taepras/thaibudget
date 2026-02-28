@@ -156,14 +156,13 @@ async function getOrCreateCategory(client, categoryNames, cache) {
     params.push(nodeIds[i], descendantId, nodeIds.length - 1 - i);
   }
 
-  if (createdAny) {
-    await client.query(
-      `insert into dim_category_path (ancestor_id, descendant_id, depth)
-       values ${values.join(", ")}
-       on conflict do nothing`,
-      params
-    );
-  }
+  // Always ensure path entries exist, even if categories were created in a previous import
+  await client.query(
+    `insert into dim_category_path (ancestor_id, descendant_id, depth)
+     values ${values.join(", ")}
+     on conflict do nothing`,
+    params
+  );
 
   return descendantId;
 }
