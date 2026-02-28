@@ -53,9 +53,65 @@ const RightSidebar = styled.div`
   // border-left: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
 
-  @media screen and (orientation: portrait) {
-    display: none;
+  @media screen and (max-width: 480px) {
+    width: 100%;
+    display: ${props => props.$mobileVisible ? 'flex' : 'none'};
   }
+`;
+
+const MainTreemapContainer = styled.div`
+  position: relative;
+  flex-grow: 1;
+
+  @media screen and (max-width: 480px) {
+    display: ${props => props.$mobileVisible ? 'block' : 'none'};
+  }
+`;
+
+const FlexContentArea = styled.div`
+  display: flex;
+  flex-direction: row;
+  flex-grow: 1;
+  overflow: hidden;
+
+  @media screen and (max-width: 480px) {
+    padding-bottom: 48px;
+  }
+`;
+
+const MobileBottomMenu = styled.div`
+  display: none;
+  
+  @media screen and (max-width: 480px) {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #111;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    z-index: 100;
+  }
+`;
+
+const MobileMenuButton = styled.button`
+  flex: 1;
+  padding: 12px;
+  background: ${props => props.$active ? 'rgba(255, 255, 255, 0.1)' : 'transparent'};
+  border: none;
+  color: white;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s;
+  
+  &:active {
+    background: rgba(255, 255, 255, 0.15);
+  }
+  
+  ${props => props.$active && `
+    border-top: 2px solid white;
+  `}
 `;
 
 const ResponsiveImage = styled.img`
@@ -144,6 +200,7 @@ function DataView({
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState(['all']);
   const [hoveredItemName, setHoveredItemName] = useState(null);
+  const [mobileView, setMobileView] = useState('structure'); // 'structure' or 'list'
   const treemapRef = useRef(null);
 
   const filterDataByQuery = useCallback((datum, query) => {
@@ -306,7 +363,7 @@ function DataView({
               >
                 {'('}
                 {(growth >= 0 ? '+' : '') + (growth * 100).toFixed(1)}
-                {'% จากปีก่อนหน้า)'}
+                {`% จากปี ${compareYear})`}
               </span>} — แบ่งตาม {' '}
               <DropdownLink
                 label={`${THAI_NAME[navigation[navigation.length - 1].groupBy] || navigation[navigation.length - 1].groupBy}`}
@@ -336,18 +393,8 @@ function DataView({
           </CreditLink>
         </div>
       </div>
-      <div style={{
-        display: 'flex',
-        flexDirection: 'row',
-        flexGrow: 1,
-        overflow: 'hidden',
-      }}
-      >
-        <div style={{
-          position: 'relative',
-          flexGrow: 1,
-        }}
-        >
+      <FlexContentArea>
+        <MainTreemapContainer $mobileVisible={mobileView === 'structure'}>
           <Treemap
             ref={treemapRef}
             title={navigation[navigation.length - 1].displayName}
@@ -371,8 +418,8 @@ function DataView({
             primaryYear={currentYear}
             compareYear={compareYear}
           />
-        </div>
-        <RightSidebar>
+        </MainTreemapContainer>
+        <RightSidebar $mobileVisible={mobileView === 'list'}>
           <div style={{ flexShrink: 0 }}>
             <YearComparison
               data={data}
@@ -385,9 +432,25 @@ function DataView({
             hoveredItemName={hoveredItemName}
             setHoveredItemName={setHoveredItemName}
             onItemClick={handlePercentageListClick}
+            primaryYear={currentYear}
+            compareYear={compareYear}
           />
         </RightSidebar>
-      </div>
+      </FlexContentArea>
+      <MobileBottomMenu>
+        <MobileMenuButton
+          $active={mobileView === 'structure'}
+          onClick={() => setMobileView('structure')}
+        >
+          โครงสร้างงบ
+        </MobileMenuButton>
+        <MobileMenuButton
+          $active={mobileView === 'list'}
+          onClick={() => setMobileView('list')}
+        >
+          รายการย่อย
+        </MobileMenuButton>
+      </MobileBottomMenu>
     </FullView>
   );
 }

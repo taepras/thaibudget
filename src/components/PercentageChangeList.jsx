@@ -108,6 +108,8 @@ function PercentageChangeList({
   hoveredItemName = null,
   setHoveredItemName = () => { },
   onItemClick = () => { },
+  primaryYear = 2569,
+  compareYear = 2568
 }) {
   const [sortMode, setSortMode] = useState('percent');
 
@@ -136,9 +138,6 @@ function PercentageChangeList({
     amount: 'จำนวนเงินเปลี่ยนแปลง',
     budget: 'จำนวนเงินงบประมาณ',
   };
-
-  const primaryYear = data?.years?.[0];
-  const compareYear = data?.years?.[1];
 
   const changeData = useMemo(() => {
     if (!data || !data.rows || data.rows.length === 0) return [];
