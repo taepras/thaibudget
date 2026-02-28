@@ -53,7 +53,7 @@ const RightSidebar = styled.div`
   // border-left: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
 
-  @media screen and (max-width: 480px) {
+  @media screen and (orientation: portrait) {
     width: 100%;
     display: ${props => props.$mobileVisible ? 'flex' : 'none'};
   }
@@ -63,7 +63,7 @@ const MainTreemapContainer = styled.div`
   position: relative;
   flex-grow: 1;
 
-  @media screen and (max-width: 480px) {
+  @media screen and (orientation: portrait) {
     display: ${props => props.$mobileVisible ? 'block' : 'none'};
   }
 `;
@@ -74,7 +74,7 @@ const FlexContentArea = styled.div`
   flex-grow: 1;
   overflow: hidden;
 
-  @media screen and (max-width: 480px) {
+  @media screen and (orientation: portrait) {
     padding-bottom: 48px;
   }
 `;
@@ -82,7 +82,7 @@ const FlexContentArea = styled.div`
 const MobileBottomMenu = styled.div`
   display: none;
   
-  @media screen and (max-width: 480px) {
+  @media screen and (orientation: portrait) {
     display: flex;
     position: fixed;
     bottom: 0;
@@ -240,6 +240,8 @@ function DataView({
   // };
 
   const handlePercentageListClick = useCallback((itemName) => {
+    // Switch to structure view on mobile to show the navigation result
+    // setMobileView('structure');
     // Trigger the actual treemap click to get existing transitions
     treemapRef.current?.triggerItemClick(itemName);
   }, []);
@@ -303,7 +305,7 @@ function DataView({
             width: '100%'
           }}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, paddingBottom: '16px'}}>
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, paddingBottom: '16px'}}>
             <BreadCrumbContainer>
               <BreadCrumbItem>
                 <DropdownLink
@@ -338,11 +340,10 @@ function DataView({
             </BreadCrumbContainer>
             <h1
               style={{
-                marginTop: '4px',
-                marginBottom: '4px',
+                margin: '8px 0',
                 fontSize: 24,
                 overflow: 'hidden',
-                whiteSpace: 'nowrap',
+                // whiteSpace: 'nowrap',
                 textOverflow: 'ellipsis',
                 minWidth: 0
               }}

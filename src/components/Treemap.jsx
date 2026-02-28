@@ -284,22 +284,29 @@ function TreemapComponent({
   const hoveredItemNameRef = useRef(hoveredItemName);
   useEffect(() => { hoveredItemNameRef.current = hoveredItemName; }, [hoveredItemName]);
   const isNavigatingRef = useRef(false);
+  const nestedDataRef = useRef(null);
 
   useImperativeHandle(ref, () => ({
     triggerItemClick: (itemName) => {
-      // Find the element with matching data key and trigger click
-      const elements = svgRef.current?.querySelectorAll('.treemap-piece');
-      if (!elements) return;
+      if (isLeafLevelRef.current) return;
 
-      elements.forEach((el) => {
-        // Get the D3 node's data
-        const d3Node = d3.select(el);
-        const nodeData = d3Node.datum();
-        if (nodeData?.data?.key === itemName) {
-          // Dispatch click event on this element
-          el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      // Find the item in the data and navigate directly
+      const data = nestedDataRef.current;
+      if (!data?.values) return;
+
+      for (const item of data.values) {
+        if (item.key === itemName) {
+          isNavigatingRef.current = true;
+          const navLoadTimer = setTimeout(() => {
+            if (isNavigatingRef.current) {
+              // setIsNavLoading(true); // Would need to pass this in
+            }
+          }, 300);
+          // Navigate to this item
+          navigateToRef.current(item.value.id, item.key);
+          return;
         }
-      });
+      }
     },
   }), []);
 
@@ -359,6 +366,10 @@ function TreemapComponent({
     });
     return { key: null, values: top };
   }, [data, primaryYear, compareYear]);
+
+  useEffect(() => {
+    nestedDataRef.current = nestedData;
+  }, [nestedData]);
 
   const growth = useMemo(() => {
     const current = data.totals?.[primaryYear];
