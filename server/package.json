@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node src/index.js",
-    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "start": "nodemon src/index.js",
     "import": "node src/import.js"
   },
   "dependencies": {

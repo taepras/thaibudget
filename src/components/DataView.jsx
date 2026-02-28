@@ -137,7 +137,6 @@ function DataView({
   navigateTo = (key, groupBy = null) => { },
   popNavigationToLevel = (n) => { },
   setGroupBy = (axis) => { },
-  defaultHierarchy = [],
   currentYear=2569,
   compareYear=2568,
   setCurrentYear = () => {},
@@ -145,58 +144,7 @@ function DataView({
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState(['all']);
   const [hoveredItemName, setHoveredItemName] = useState(null);
-  // const [groupingAxis, setGroupingAxis] = useState('MINISTRY'); // 'MINISTRY' or 'BUDGET_PLAN'
   const treemapRef = useRef(null);
-
-  // Calculate effective hierarchy based on grouping axis
-  // const effectiveHierarchy = useMemo(() => {
-  //   if (groupingAxis === 'BUDGET_PLAN') {
-  //     return [
-  //       'BUDGET_PLAN',
-  //       'MINISTRY',
-  //       'BUDGETARY_UNIT',
-  //       'OUTPUT_PROJECT',
-  //       'ITEM',
-  //     ];
-  //   }
-  //   if (groupingAxis === 'CATEGORY_LV1') {
-  //     return [
-  //       'CATEGORY_LV1',
-  //       'MINISTRY',
-  //       'BUDGETARY_UNIT',
-  //       'OUTPUT_PROJECT',
-  //       'ITEM',
-  //     ];
-  //   }
-  //   if (groupingAxis === 'CATEGORY_LV2') {
-  //     return [
-  //       'CATEGORY_LV2',
-  //       'MINISTRY',
-  //       'BUDGETARY_UNIT',
-  //       'OUTPUT_PROJECT',
-  //       'ITEM',
-  //     ];
-  //   }
-  //   if (groupingAxis === 'CATEGORY_LV3') {
-  //     return [
-  //       'CATEGORY_LV3',
-  //       'MINISTRY',
-  //       'BUDGETARY_UNIT',
-  //       'OUTPUT_PROJECT',
-  //       'ITEM',
-  //     ];
-  //   }
-  //   if (groupingAxis === 'CATEGORY_LV4') {
-  //     return [
-  //       'CATEGORY_LV4',
-  //       'MINISTRY',
-  //       'BUDGETARY_UNIT',
-  //       'OUTPUT_PROJECT',
-  //       'ITEM',
-  //     ];
-  //   }
-  //   return hierarchyBy;
-  // }, [groupingAxis]);
 
   const filterDataByQuery = useCallback((datum, query) => {
     const searchLevels = [
@@ -300,21 +248,28 @@ function DataView({
         >
           <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, paddingBottom: '16px'}}>
             <BreadCrumbContainer>
-              <BreadCrumbItem
-                type="button"
-                onClick={() => { popNavigationToLevel(0); }}
-                style={{ textDecoration: navigation.length <= 1 ? 'none' : 'underline' }}
-              >
-                งบประมาณปี {currentYear}
+              <BreadCrumbItem>
+                <DropdownLink
+                  label={`งบประมาณปี ${currentYear}`}
+                  options={[
+                    { value: 2569, label: 2569 },
+                    { value: 2568, label: 2568 },
+                    { value: 2567, label: 2567 },
+                    { value: 2566, label: 2566 },
+                    { value: 2565, label: 2565 },
+                  ]}
+                  value={currentYear}
+                  onChange={setCurrentYear}
+                />
               </BreadCrumbItem>
               {navigation
-                .filter((x, i) => i > 0 && i < navigation.length - 1)
+                .filter((x, i) => i < navigation.length - 1)
                 .map((x, i) => (
                   <React.Fragment key={navigation.slice(0, i + 1).map((n) => n.key).join('/')}>
                     <span>&gt;</span>
                     <BreadCrumbItem
                       type="button"
-                      onClick={() => { popNavigationToLevel(i + 1); }}
+                      onClick={() => { popNavigationToLevel(i); }}
                       title={x.displayName}
                     >
                       {x.displayName.length < 20 ? x.displayName : `${x.displayName.substr(0, 20)}...`}

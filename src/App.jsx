@@ -391,7 +391,7 @@ function App() {
       >
 
       </div> */}
-      <ReactTooltip multiline />
+      <ReactTooltip html />
     </FullView>
   );
 }

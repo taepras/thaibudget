@@ -127,6 +127,7 @@ function TailOverlay({
           .style('filter', 'drop-shadow(0 0 3px rgba(255,255,255,0.8))');
 
         const tip = `${d?.data?.key}<br>${abbreviateNumber(d?.value)}<br>เติบโต: ${d?.GROWTH != null ? `${(d.GROWTH * 100).toFixed(1)}%` : 'N/A'}`;
+        e.currentTarget.setAttribute('data-html', 'true');
         e.currentTarget.setAttribute('data-tip', tip);
         ReactTooltip.show(e.currentTarget);
       })
@@ -576,11 +577,20 @@ function TreemapComponent({
             .style('filter', 'drop-shadow(0 0 3px rgba(255,255,255,0.8))');
         }
 
-        const nodeGrowth = d?.GROWTH;
+        const nodeGrowth = d?.GROWTH ?? 0;
         const lastYear = d?.AMOUNT_LASTYEAR;
-        const growthText = nodeGrowth != null ? `${(nodeGrowth * 100).toFixed(1)}%` : 'N/A';
+        const growthText = nodeGrowth != null
+          ? `<span style="color:${nodeGrowth > 0 ? '#25d925' : '#f11919'}">${nodeGrowth > 0 ? '+' : ''}${(nodeGrowth * 100).toFixed(1)}%</span>`
+          : 'N/A';
         const lastYearText = lastYear != null ? abbreviateNumber(lastYear) : 'N/A';
-        const tip = `${d?.data?.key}<br>${abbreviateNumber(d?.value)}<br>ปีที่แล้ว: ${lastYearText}<br>เติบโต: ${growthText}`;
+        const tip = [
+          `<div><b>${d?.data?.key}</b></div>`,
+          `<div style="opacity: 0.6">${primaryYear}: ${abbreviateNumber(d?.value)}</div>`,
+          `<div style="opacity: 0.6">${compareYear}: ${lastYearText}</div>`,
+          `<div><span style="opacity: 0.6">เติบโต: </span>${growthText}</div>`,
+          `<div style="opacity: 0.6; font-size: 12px; font-style: italic; margin-top: 0.25rem;">กดเพื่อดูรายละเอียด</div>`,
+        ].join('');
+        e.currentTarget.setAttribute('data-html', 'true');
         e.currentTarget.setAttribute('data-tip', tip);
         ReactTooltip.show(e.currentTarget);
       })
@@ -793,39 +803,18 @@ function TreemapComponent({
           // paddingRight: 18,
         }}
       >
-        <Ui.Title>โครงสร้างงบ</Ui.Title>
-        {/* <div>
-          <b style={{ whiteSpace: 'nowrap', fontSize: 16 }}>
-            {title}
-          </b>
-          <br />
-          <span style={{ opacity: 0.6 }}>
-            {(data?.totals?.[primaryYear])?.toLocaleString() ?? 'n/a'} บาท
-            {growth != null && (
-              <span
-                style={{
-                  color: growth > 0 ? '#4f4' : growth < 0 ? '#f44' : 'inherit',
-                  marginLeft: '8px',
-                }}
-              >
-                {'('}
-                {(growth >= 0 ? '+' : '') + (growth * 100).toFixed(1)}
-                {'% จากปีก่อน)'}
-              </span>
-            )}
-          </span>
-        </div> */}
+        <Ui.Title>โครงสร้างงบประมาณ</Ui.Title>
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             fontSize: 11,
-            opacity: 0.6,
+            // opacity: 0.6,
             gap: '6px',
             marginTop: 4,
           }}
         >
-          <span>{`-${colorScaleMaxValue * 100}%`}</span>
+          <span style={{color: '#f11919'}}>{`-${colorScaleMaxValue * 100}%`}</span>
           <div
             style={{
               width: '80px',
@@ -833,7 +822,7 @@ function TreemapComponent({
               background: 'linear-gradient(to right, #cf0000, #222222, #00ac00)',
             }}
           />
-          <span>{`+${colorScaleMaxValue * 100}%`}</span>
+          <span style={{color: '#25d925'}}>{`+${colorScaleMaxValue * 100}%`}</span>
         </div>
       </div>
       {isLoading

@@ -10,7 +10,7 @@ const Toggle = styled.button`
   padding: 0;
   font-family: inherit;
   font-size: inherit;
-  font-style: italic;
+  // font-style: italic;
   transition: color 0.2s;
   text-decoration: underline;
 
@@ -19,7 +19,7 @@ const Toggle = styled.button`
   }
 
   &::after {
-    content: ' v';
+    content: ' ▼';
     display: inline-block;
     margin-left: 4px;
     font-size: 11px;
@@ -121,7 +121,7 @@ function DropdownLink({
   // If there's only one (or zero) options, nothing to choose — render static text
   if (options.length <= 1) {
     return (
-      <span style={{ fontStyle: 'italic' }}>{label}</span>
+      <span>{label}</span>
     );
   }
 
