@@ -90,9 +90,9 @@ app.get("/api/dimensions", async (req, res) => {
     ];
 
     return res.json({
-      ministries: ministriesResult.rows,
-      categoryLv1: categoriesResult.rows,
-      obligedTypes,
+      ministry: ministriesResult.rows,
+      category: categoriesResult.rows,
+      obliged: obligedTypes,
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });

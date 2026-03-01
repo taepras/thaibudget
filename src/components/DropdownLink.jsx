@@ -19,8 +19,9 @@ const Toggle = styled.button`
   }
 
   &::after {
-    content: ' ▼';
+    content: '▼';
     display: inline-block;
+    // text-decoration: underline;
     margin-left: 4px;
     font-size: 11px;
     font-weight: normal;

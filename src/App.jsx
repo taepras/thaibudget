@@ -130,6 +130,7 @@ function App() {
   }, []);
 
   const [navigation, setNavigation] = useState([{ key: null, displayName: 'รวมทุกหน่วยงาน', groupBy: 'ministry' }]);
+  const [filters, setFilters] = useState({});
 
   const navigateTo = useCallback((key, displayName = null, metadata = {}) => {
     if (displayName === null) displayName = key;
@@ -190,6 +191,23 @@ function App() {
     });
   }, []);
 
+  const [dimensions, setDimensions] = useState({});
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/dimensions`);
+      if (!response.ok) throw new Error('API error');
+      const result = await response.json();
+      console.log('✅ dimensions loaded', result);
+      setDimensions(result);
+
+      const tmpFilter = {};
+      Object.keys(result).forEach((dim) => { tmpFilter[dim.name] = null; });
+      setFilters(tmpFilter);
+    }
+    fetchData();
+  }, []);
+
   useEffect(() => {
     console.log('🗺️ navigation updated', navigation);
     let cancelled = false;
@@ -202,6 +220,13 @@ function App() {
         group: navigation[navigation.length - 1].groupBy,
         collapseCategories: 'true',
       };
+
+      // filter by filter states
+      for (const [filterName, filterValue] of Object.entries(filters)) {
+        if (filterValue !== null) {
+          params[`filter${filterName.charAt(0).toUpperCase() + filterName.slice(1)}Id`] = filterValue;
+        }
+      }
 
       // Build filter parameters from navigation trail
       const categoryKeyStartIndex = navigation.findIndex(node => node.groupBy === 'category');
@@ -321,7 +346,7 @@ function App() {
 
     // Cancel stale in-flight fetch when navigation/year changes before it resolves
     return () => { cancelled = true; };
-  }, [currentYear, compareYear, navigation]);
+  }, [currentYear, compareYear, navigation, filters]);
 
   const setSumWindowsIdx = (i, value) => {
     const temp = [...sumWindows];
@@ -363,6 +388,9 @@ function App() {
             popNavigationToLevel={popNavigationToLevel}
             setGroupBy={setGroupBy}
             defaultHierarchy={DEFAULT_HIERARCHY}
+            filterableDimensions={dimensions}
+            filters={filters}
+            setFilters={setFilters}
           />
         </div>
         {isCompareView && (

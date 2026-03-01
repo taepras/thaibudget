@@ -1,5 +1,5 @@
 import React, {
-  useCallback, useMemo, useState, useRef,
+  useCallback, useMemo, useState, useRef, useEffect,
 } from 'react';
 import styled from 'styled-components';
 import { useHistory, useLocation } from 'react-router-dom';
@@ -133,7 +133,7 @@ const CreditLink = styled.a`
   margin-left: 16px;
   height: 48px;
   width: 48px;
-  opacity: 0.6;
+  opacity: 0.8;
 
   &:hover {
     opacity: 1;
@@ -148,33 +148,6 @@ const CreditLink = styled.a`
     max-width: 64px;
   }
 `;
-
-const GROUPABLE_KEYS = [
-  'ministry',
-  'budgetary_unit',
-  'budget_plan',
-  'project',
-  'category',
-  'item'
-];
-
-
-const hierarchyBy = [
-  'MINISTRY',
-  'BUDGETARY_UNIT',
-  'BUDGET_PLAN',
-  // 'OUPUT',
-  // 'PROJECT',
-  'OUTPUT_PROJECT',
-  // 'CATEGORY_LV1',
-  'ITEM',
-  // 'CATEGORY_LV2',
-  // 'CATEGORY_LV3',
-  // 'CATEGORY_LV4',
-  // 'CATEGORY_LV5',
-  // 'CATEGORY_LV6',
-  // 'ITEM_DESCRIPTION',
-];
 
 const THAI_NAME = {
   ministry: 'กระทรวงหรือเทียบเท่า',
@@ -202,9 +175,11 @@ function DataView({
   currentYear=2569,
   compareYear=2568,
   setCurrentYear = () => {},
+  filterableDimensions = {},
+  filters = {},
+  setFilters = ({}) => {},
 }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filters, setFilters] = useState(['all']);
   const [hoveredItemName, setHoveredItemName] = useState(null);
   const [mobileView, setMobileView] = useState('structure'); // 'structure' or 'list'
   const treemapRef = useRef(null);
@@ -380,6 +355,32 @@ function DataView({
                 onChange={setGroupBy}
               />
             </div>
+            {/* <div style={{ fontSize: 14, opacity: 0.6, marginTop: 8 }}>
+              <BreadCrumbText>กรอง...</BreadCrumbText>
+              {Object.keys(filterableDimensions ?? {}).map((key) => {
+                const options = [
+                  ...filterableDimensions[key]?.map(k => ({ value: k.id, label: k.name })),
+                  { value: null, label: 'ทั้งหมด' }
+                ].sort((a, b) => {
+                  if (a?.value === null) return -1;
+                  if (b?.value === null) return 1;
+                  return a?.label?.localeCompare(b?.label);
+                });
+                if (options) {
+                  return (
+                    <BreadCrumbText key={`filter-control-${key}`} style={{ marginLeft: 8 }}>
+                      <DropdownLink
+                        label={`${THAI_NAME[key] || key}: ${options.find(o => o.value === filters?.[key])?.label || 'ทั้งหมด'}`}
+                        options={options}
+                        value={filters?.[key]}
+                        onChange={(value) => setFilters((prev) => ({ ...prev, [key]: value }))}
+                      />
+                    </BreadCrumbText>
+                  );
+                }
+                return null;
+              })}
+            </div> */}
           </div>
 
           {/* <div>
