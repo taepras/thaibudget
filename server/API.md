@@ -56,7 +56,8 @@ Returns aggregated budget data grouped by a specified dimension, with optional f
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `year` | integer | Yes | Fiscal year (2565-2569) |
-| `group` | string | Yes | Grouping dimension: `ministry`, `budgetary_unit`, `budget_plan`, `output`, `project`, `category`, or `item` |
+| `group` | string | Yes | Grouping dimension: `ministry`, `budgetary_unit`, `budget_plan`, `output`, `project`, `category`, `item`, or `obliged` |
+| `filterObligedValue` | string | No | Filter by obliged status: `'true'`, `'false'`, or `'null'` |
 | `filterMinistryId` | integer | No | Filter by ministry ID |
 | `filterBudgetaryUnitId` | integer | No | Filter by budgetary unit ID |
 | `filterBudgetPlanId` | integer | No | Filter by budget plan ID |
@@ -195,6 +196,14 @@ Hierarchical classification of budget items (up to 6 levels):
 - Level 2-6: Sub-categories
 
 **Hierarchy Filtering:** When using `filterCategoryId`, the API returns all budget items in that category and its descendants (full subtree).
+
+### Obliged (งบผูกผัน)
+Indicator of budget obligation status:
+- **ไม่ผูกพัน** (not obliged) - Unobligated budget
+- **ผูกพัน** (obliged) - Obligated budget
+- **ไม่ระบุ** (unspecified) - Items without obligation data
+
+This dimension allows grouping and filtering budget items by their obligation status.
 
 ---
 

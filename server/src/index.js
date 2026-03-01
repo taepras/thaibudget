@@ -60,6 +60,11 @@ const breakdownGroups = {
     join: "",
     groupBy: "f.item_description",
   },
+  obliged: {
+    select: "coalesce(f.obliged::text, 'null') as id, case when f.obliged is null then 'ไม่ระบุ' when f.obliged = true then 'งบผูกพัน' else 'งบไม่ผูกพัน' end as name",
+    join: "",
+    groupBy: "f.obliged",
+  },
 };
 
 app.get("/api/breakdown", async (req, res) => {
@@ -159,9 +164,13 @@ app.get("/api/breakdown", async (req, res) => {
       .json({ error: "filterBudgetPlanId must be an integer" });
   }
   if (filterBudgetPlanId !== null) {
-    joins.add(joinMap.budget_plan);
-    params.push(filterBudgetPlanId);
-    conditions.push(`bp.id = $${params.length}`);
+    if (filterBudgetPlanId === -1) {
+      conditions.push("f.budget_plan_id is null");
+    } else {
+      joins.add(joinMap.budget_plan);
+      params.push(filterBudgetPlanId);
+      conditions.push(`bp.id = $${params.length}`);
+    }
   }
 
   const filterOutputId = parseId(req.query.filterOutputId);
@@ -169,9 +178,13 @@ app.get("/api/breakdown", async (req, res) => {
     return res.status(400).json({ error: "filterOutputId must be an integer" });
   }
   if (filterOutputId !== null) {
-    joins.add(joinMap.output);
-    params.push(filterOutputId);
-    conditions.push(`o.id = $${params.length}`);
+    if (filterOutputId === -1) {
+      conditions.push("f.output_id is null");
+    } else {
+      joins.add(joinMap.output);
+      params.push(filterOutputId);
+      conditions.push(`o.id = $${params.length}`);
+    }
   }
 
   const filterProjectId = parseId(req.query.filterProjectId);
@@ -179,9 +192,13 @@ app.get("/api/breakdown", async (req, res) => {
     return res.status(400).json({ error: "filterProjectId must be an integer" });
   }
   if (filterProjectId !== null) {
-    joins.add(joinMap.project);
-    params.push(filterProjectId);
-    conditions.push(`p.id = $${params.length}`);
+    if (filterProjectId === -1) {
+      conditions.push("f.project_id is null");
+    } else {
+      joins.add(joinMap.project);
+      params.push(filterProjectId);
+      conditions.push(`p.id = $${params.length}`);
+    }
   }
 
   const filterCategoryId = parseId(req.query.filterCategoryId);
@@ -192,11 +209,27 @@ app.get("/api/breakdown", async (req, res) => {
       .json({ error: "filterCategoryId must be an integer" });
   }
   if (filterCategoryId !== null) {
-    // Add the filter join (separate from grouping join for category)
-    joins.add(joinMap.category_path);
-    params.push(filterCategoryId);
-    filterCategoryParamIndex = params.length;
-    conditions.push(`cp_filter.ancestor_id = $${params.length}`);
+    if (filterCategoryId === -1) {
+      conditions.push("f.category_id is null");
+    } else {
+      // Add the filter join (separate from grouping join for category)
+      joins.add(joinMap.category_path);
+      params.push(filterCategoryId);
+      filterCategoryParamIndex = params.length;
+      conditions.push(`cp_filter.ancestor_id = $${params.length}`);
+    }
+  }
+
+  // Handle obliged filter (can be 'true', 'false', or 'null')
+  const filterObligedId = req.query.filterObligedId;
+  if (filterObligedId !== undefined && filterObligedId !== null) {
+    if (filterObligedId === 'null') {
+      conditions.push('f.obliged is null');
+    } else if (filterObligedId === 'true') {
+      conditions.push('f.obliged = true');
+    } else if (filterObligedId === 'false') {
+      conditions.push('f.obliged = false');
+    }
   }
 
   // For category grouping, default to level 1 (top-level categories) unless specified

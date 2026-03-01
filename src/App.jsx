@@ -97,6 +97,20 @@ const DEFAULT_HIERARCHY = [
   'item'
 ];
 
+const getNextGroupBy = (navigation) => {
+  const currentGroupBy = navigation[navigation.length - 1]?.groupBy;
+
+  if (currentGroupBy === 'category') {
+    return 'category';
+  } else if (currentGroupBy === 'ministry') {
+    return 'budgetary_unit';
+  } else if (currentGroupBy === 'budget_plan') {
+    return 'output'
+  }
+
+  return DEFAULT_HIERARCHY.filter((x) => !navigation.map((n) => n.groupBy).includes(x))?.[0] ?? null;
+}
+
 function App() {
   const [data, setData] = useState([]);
   const [isLoading, setLoading] = useState(true);
@@ -115,19 +129,7 @@ function App() {
 
   const navigateTo = useCallback((key, displayName = null, groupBy = null) => {
     if (displayName === null) displayName = key;
-    if (groupBy === null) {
-      const currentGroupBy = navigation[navigation.length - 1]?.groupBy;
-
-      // For category drilling, stay in category group (drill down to next level)
-      if (currentGroupBy === 'category') {
-        groupBy = 'category';
-      } else if (currentGroupBy === 'ministry') {
-        groupBy = 'budgetary_unit';
-      } else {
-        const currentIdx = DEFAULT_HIERARCHY.indexOf(currentGroupBy);
-        groupBy = currentIdx >= 0 ? DEFAULT_HIERARCHY[currentIdx + 1] : null;
-      }
-    }
+    if (groupBy === null)  groupBy = getNextGroupBy(navigation);
     setNavigation([...navigation, { key, groupBy, displayName }]);
   }, [navigation, setNavigation]);
 
@@ -193,15 +195,7 @@ function App() {
         // Using "first unused" would loop: e.g. output→project (replacing 'output' in nav)
         // then project→output (since 'output' is now gone from usedGroupBys).
         setNavigation((nav) => {
-          const currentGroupBy = nav[nav.length - 1].groupBy;
-          const nextGroupBy = currentGroupBy === 'ministry'
-            ? 'budgetary_unit'
-            : currentGroupBy === 'budget_plan'
-              ? 'output'
-              : DEFAULT_HIERARCHY.filter((x) => !nav.map((n) => n.groupBy).includes(x))[0];
-
-          // const currentIdx = DEFAULT_HIERARCHY.indexOf(currentGroupBy);
-          // const nextGroupBy = currentIdx >= 0 ? DEFAULT_HIERARCHY[currentIdx + 1] : null;
+          const nextGroupBy = getNextGroupBy(nav);
           if (!nextGroupBy) return nav; // already at deepest level, nothing to skip
           const newNav = [...nav];
           newNav[newNav.length - 1] = { ...newNav[newNav.length - 1], groupBy: nextGroupBy };
