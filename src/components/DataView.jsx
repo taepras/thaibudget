@@ -54,13 +54,34 @@ const BreadCrumbText = styled.span`
 const RightSidebar = styled.div`
   display: flex;
   flex-direction: column;
-  width: 320px;
+  width: ${props => props.$width}px;
+  min-width: 180px;
+  max-width: 600px;
   // border-left: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
+  flex-shrink: 0;
 
   @media screen and (orientation: portrait) {
     width: 100%;
     display: ${props => props.$mobileVisible ? 'flex' : 'none'};
+  }
+`;
+
+const DragHandle = styled.div`
+  width: 6px;
+  cursor: col-resize;
+  flex-shrink: 0;
+  background: transparent;
+  transition: background 0.15s;
+  position: relative;
+  z-index: 10;
+
+  &:hover, &.dragging {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  @media screen and (orientation: portrait) {
+    display: none;
   }
 `;
 
@@ -182,7 +203,40 @@ function DataView({
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredItemName, setHoveredItemName] = useState(null);
   const [mobileView, setMobileView] = useState('structure'); // 'structure' or 'list'
+  const [sidebarWidth, setSidebarWidth] = useState(320);
   const treemapRef = useRef(null);
+  const dragHandleRef = useRef(null);
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartWidth = useRef(0);
+
+  const onDragMouseDown = useCallback((e) => {
+    isDragging.current = true;
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = sidebarWidth;
+    dragHandleRef.current?.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const onMouseMove = (moveEvent) => {
+      if (!isDragging.current) return;
+      const delta = dragStartX.current - moveEvent.clientX;
+      const newWidth = Math.min(600, Math.max(180, dragStartWidth.current + delta));
+      setSidebarWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      isDragging.current = false;
+      dragHandleRef.current?.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [sidebarWidth]);
 
   const filterDataByQuery = useCallback((datum, query) => {
     const searchLevels = [
@@ -428,7 +482,8 @@ function DataView({
             compareYear={compareYear}
           />
         </MainTreemapContainer>
-        <RightSidebar $mobileVisible={mobileView === 'list'}>
+        <DragHandle ref={dragHandleRef} onMouseDown={onDragMouseDown} />
+        <RightSidebar $mobileVisible={mobileView === 'list'} $width={sidebarWidth}>
           <div style={{ flexShrink: 0 }}>
             <YearComparison
               data={data}

@@ -216,7 +216,7 @@ function PercentageChangeList({
                   let displayValue = '';
                   let displayColor = '';
                   if (sortMode === 'percent') {
-                    displayValue = item.isNew ? 'ใหม่' : `${(item.growth * 100).toFixed(1)}%`;
+                    displayValue = item.isNew ? 'ใหม่' : `${item.growth > 0 ? '+' : ''}${(item.growth * 100).toFixed(1)}%`;
                     if (item.isNew) displayColor = '#00cccc';
                     else if (item.growth > 0.05) displayColor = '#00ac00';
                     else if (item.growth > 0) displayColor = '#88dd88';
