@@ -97,11 +97,15 @@ const DEFAULT_HIERARCHY = [
   'item'
 ];
 
-const getNextGroupBy = (navigation) => {
+const getNextGroupBy = (navigation, navigatingTo) => {
   const currentGroupBy = navigation[navigation.length - 1]?.groupBy;
 
+  console.log('🫥 getNextGroupBy');
+  console.log('>> latest nav', navigation[navigation.length - 1]);
+  console.log('>> currentGroupBy', currentGroupBy);
   if (currentGroupBy === 'category') {
-    return 'category';
+    if (!navigatingTo?.metadata?.isTerminal)
+      return 'category';
   } else if (currentGroupBy === 'ministry') {
     return 'budgetary_unit';
   } else if (currentGroupBy === 'budget_plan') {
@@ -127,11 +131,50 @@ function App() {
 
   const [navigation, setNavigation] = useState([{ key: null, displayName: 'รวมทุกหน่วยงาน', groupBy: 'ministry' }]);
 
-  const navigateTo = useCallback((key, displayName = null, groupBy = null) => {
+  const navigateTo = useCallback((key, displayName = null, metadata = {}) => {
     if (displayName === null) displayName = key;
-    if (groupBy === null)  groupBy = getNextGroupBy(navigation);
-    setNavigation([...navigation, { key, groupBy, displayName }]);
-  }, [navigation, setNavigation]);
+
+
+    setNavigation((currentNav) => {
+      console.log('😡 navigating...');
+      console.log('>> old nav', currentNav);
+      console.log('>> going to...', { key, displayName, metadata });
+      const groupBy = getNextGroupBy(currentNav, { key, displayName, metadata });
+      console.log('🫠 new groupBy >> ', groupBy);
+      console.log('🫠 new navigation >> ', [...currentNav, { key, displayName, groupBy, metadata }]);
+      return [...currentNav, { key, displayName, groupBy, metadata }];
+    });
+
+    // setNavigation((currentNav) => {
+    //   // // Special case: if clicking on sentinel id -1 in category context,
+    //   // // append -1 to the category path and switch to 'item' groupBy.
+    //   // // This tells the backend "show items directly in this category, not subcategories"
+    //   // if (key === -1 && groupBy === undefined) {
+    //   //   const lastNode = currentNav[currentNav.length - 1];
+    //   //   if (lastNode?.groupBy === 'category') {
+    //   //     // Update current category node to groupBy='item' (which will trigger sending -1 in path)
+    //   //     const newNav = [...currentNav];
+    //   //     newNav[newNav.length - 1] = { ...newNav[newNav.length - 1], groupBy: 'item' };
+    //   //     return newNav;
+    //   //   }
+    //   // }
+
+    //   // if (groupBy === null) {
+    //   const nextNav = [...currentNav, { key, groupBy, displayName, metadata }]
+    //   groupBy = getNextGroupBy(nextNav);
+    //   console.log('🫥getNextGroupBy >> ', groupBy);
+
+    //     // // If drilling into a terminal category, treat category as "used" and get the next groupBy
+    //     // if (currentNav[currentNav.length - 1]?.groupBy === 'category' && metadata.isTerminal) {
+    //     //   // Create a temporary nav that includes this category click to simulate it being "used"
+    //     //   const tempNav = [...currentNav, { key, groupBy: 'category', displayName }];
+    //     //   groupBy = getNextGroupBy(tempNav);
+    //     // }
+    //   // }
+
+    //   return nextNav;
+    // });
+  }, []);
 
   const popNavigationToLevel = useCallback((n) => {
     console.log('😡 pop navigation to level', n, navigation, navigation.slice(0, n + 1));
@@ -158,14 +201,59 @@ function App() {
         year: [2569, 2568, 2567, 2566, 2565], // todo: dynamic years
         group: navigation[navigation.length - 1].groupBy,
       };
+
+      // Build filter parameters from navigation trail
+      const categoryKeyStartIndex = navigation.findIndex(node => node.groupBy === 'category');
+      let hasCategoryInPath = false;
+
       for (let i = 0; i < navigation.length - 1; i++) {
         if (navigation[i].groupBy && navigation[i + 1].key) {
           const groupByCamelCase = navigation[i].groupBy
             .split('_')
             .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
             .join('');
-          console.log('groupByCamelCase', groupByCamelCase, navigation[i + 1].key);
-          params[`filter${groupByCamelCase}Id`] = navigation[i + 1].key;
+
+          // For category grouping, collect all category IDs into a path array
+          if (navigation[i].groupBy === 'category') {
+            hasCategoryInPath = true;
+            // Don't set filterCategoryId here; we'll handle it with filterCategoryPath below
+          } else {
+            params[`filter${groupByCamelCase}Id`] = navigation[i + 1].key;
+          }
+        }
+      }
+
+      // If there are categories in the path, build filterCategoryPath
+      if (hasCategoryInPath && categoryKeyStartIndex >= 0) {
+        const categoryIds = [];
+        // Start from the first category entry and collect keys where previous groupBy was also 'category'
+        // This ensures we only collect actual category IDs, not IDs from other dimensions
+        for (let i = categoryKeyStartIndex; i < navigation.length; i++) {
+          if (navigation[i].groupBy === 'category' && navigation[i].key !== null) {
+            // Only add this key if the previous groupBy was also 'category'
+            // (meaning this key represents a category we drilled into, not another dimension)
+            if (i === categoryKeyStartIndex) {
+              // Skip the first category entry - its key comes from the previous dimension (e.g., project)
+              continue;
+            }
+            if (navigation[i - 1].groupBy === 'category') {
+              categoryIds.push(navigation[i].key);
+            }
+          }
+        }
+        // If current groupBy is 'item' after categories, append -1 to the path
+        // This tells backend to show items directly in the last category.
+        // If the last item node has a real key (not -1), it's a terminal category whose ID must
+        // be included in the path first, then -1 to signal "show direct items of this category".
+        if (navigation[navigation.length - 1].groupBy === 'item' && categoryIds.length > 0) {
+          const itemNodeKey = navigation[navigation.length - 1].key;
+          if (itemNodeKey !== null && itemNodeKey !== -1 && itemNodeKey !== '-1') {
+            categoryIds.push(itemNodeKey);
+          }
+          categoryIds.push(-1);
+        }
+        if (categoryIds.length > 0) {
+          params.filterCategoryPath = categoryIds.join(',');
         }
       }
 
@@ -195,8 +283,22 @@ function App() {
         // Using "first unused" would loop: e.g. output→project (replacing 'output' in nav)
         // then project→output (since 'output' is now gone from usedGroupBys).
         setNavigation((nav) => {
+          const currentGroupBy = nav[nav.length - 1]?.groupBy;
+
+          // Special case: if current groupBy is 'category' and we got empty rows,
+          // it means there are no more subcategories. Switch to 'item' to show items.
+          if (currentGroupBy === 'category') {
+            const newNav = [...nav];
+            newNav[newNav.length - 1] = { ...newNav[newNav.length - 1], groupBy: 'item' };
+            return newNav;
+          }
+
           const nextGroupBy = getNextGroupBy(nav);
-          if (!nextGroupBy) return nav; // already at deepest level, nothing to skip
+          if (!nextGroupBy || nextGroupBy === currentGroupBy) {
+            // No next group, or nextGroupBy is the same as current
+            // This prevents infinite loops.
+            return nav;
+          }
           const newNav = [...nav];
           newNav[newNav.length - 1] = { ...newNav[newNav.length - 1], groupBy: nextGroupBy };
           return newNav;

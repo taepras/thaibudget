@@ -71,7 +71,7 @@ app.get("/api/breakdown", async (req, res) => {
   // Accept ?year=2569 (single) or ?year=2568&year=2569 (multiple)
   const rawYears = Array.isArray(req.query.year) ? req.query.year : [req.query.year];
   const years = rawYears.map(Number).filter(Number.isInteger);
-  const group = req.query.group;
+  let group = req.query.group;
 
   const parseId = (value) => {
     if (value === undefined) {
@@ -203,20 +203,54 @@ app.get("/api/breakdown", async (req, res) => {
 
   const filterCategoryId = parseId(req.query.filterCategoryId);
   let filterCategoryParamIndex = null;
+  let isTerminalCategory = false; // true if path ends with -1
+  let categoryPathArray = []; // Full array of category IDs in the drill-down path
+
+  // Parse filterCategoryPath as comma-separated string, or fall back to filterCategoryId
+  let leafCategoryId = filterCategoryId;
+  if (req.query.filterCategoryPath) {
+    const pathStr = req.query.filterCategoryPath;
+    categoryPathArray = pathStr.split(',').map(x => {
+      const parsed = Number(x.trim());
+      return Number.isInteger(parsed) ? parsed : null;
+    }).filter(x => x !== null);
+
+    if (categoryPathArray.length > 0) {
+      isTerminalCategory = categoryPathArray[categoryPathArray.length - 1] === -1;
+      if (isTerminalCategory) {
+        categoryPathArray = categoryPathArray.slice(0, -1); // Remove the -1 marker
+      }
+      leafCategoryId = categoryPathArray[categoryPathArray.length - 1];
+    }
+  } else if (filterCategoryId !== null) {
+    categoryPathArray = [filterCategoryId];
+  }
+
   if (req.query.filterCategoryId && filterCategoryId === null) {
     return res
       .status(400)
       .json({ error: "filterCategoryId must be an integer" });
   }
-  if (filterCategoryId !== null) {
-    if (filterCategoryId === -1) {
+
+  if (leafCategoryId !== null) {
+    if (leafCategoryId === -1) {
       conditions.push("f.category_id is null");
+    } else if (isTerminalCategory) {
+      // Terminal category: filter for items directly in this category only (not descendants)
+      params.push(leafCategoryId);
+      conditions.push(`f.category_id = $${params.length}`);
     } else {
-      // Add the filter join (separate from grouping join for category)
-      joins.add(joinMap.category_path);
-      params.push(filterCategoryId);
+      // Non-terminal: filter for items that are descendants of ALL categories in the path
+      // This ensures we only get items that match the full drill-down path
+      for (let i = 0; i < categoryPathArray.length; i++) {
+        const categoryId = categoryPathArray[i];
+        const aliasName = `cp_filter_${i}`;
+        joins.add(`left join dim_category_path ${aliasName} on f.category_id = ${aliasName}.descendant_id`);
+        params.push(categoryId);
+        conditions.push(`${aliasName}.ancestor_id = $${params.length}`);
+      }
+      // Set filterCategoryParamIndex to the last one for the category grouping logic
       filterCategoryParamIndex = params.length;
-      conditions.push(`cp_filter.ancestor_id = $${params.length}`);
     }
   }
 
@@ -232,15 +266,25 @@ app.get("/api/breakdown", async (req, res) => {
     }
   }
 
+  // If terminal category marker (-1) is at end of path, show items instead of deeper categories
+  // IMPORTANT: must also remove the category groupBy join that was added earlier using the
+  // initial groupConfig (which was 'category'), otherwise it stays in the joins set and
+  // multiplies every fact row by the number of ancestors, inflating all sums.
+  if (isTerminalCategory && group === 'category') {
+    group = 'item';
+    // Remove the category-grouping joins that were pre-added for the 'category' groupConfig
+    joins.delete(breakdownGroups.category.join);
+  }
+
   // For category grouping, default to level 1 (top-level categories) unless specified
   if (group === 'category') {
     let targetLevel = 1;
 
     // If filtering by a parent category, show the next level down
-    if (filterCategoryId !== null) {
+    if (leafCategoryId !== null) {
       const parentLevelResult = await query(
         'select level from dim_category where id = $1',
-        [filterCategoryId]
+        [leafCategoryId]
       );
       if (parentLevelResult.rows.length > 0) {
         targetLevel = parentLevelResult.rows[0].level + 1;
@@ -261,11 +305,22 @@ app.get("/api/breakdown", async (req, res) => {
     // When drilling into a parent category, include rows posted directly on that parent
     // (i.e. no deeper subcategory) so child breakdown totals stay consistent.
     if (filterCategoryParamIndex !== null) {
+      // Filter grouped categories to direct children of leafCategoryId.
+      // We use c.parent_id rather than a closure-table join because dim_category_path only
+      // stores (ancestor, leaf) pairs — intermediate nodes have no "descendant_id" entries
+      // unless they were also ever a leaf category, so an INNER JOIN on cp_group_filter
+      // would incorrectly drop those nodes.
+      params.push(leafCategoryId);
+      const leafCategoryParamIndex = params.length;
+
       conditions.push(
-        `(c.level = $${targetLevelParamIndex} or f.category_id = $${filterCategoryParamIndex})`
+        `((c.level = $${targetLevelParamIndex} and c.parent_id = $${leafCategoryParamIndex}) or (f.category_id = $${filterCategoryParamIndex} and c.id = $${leafCategoryParamIndex}))`
       );
     } else {
-      conditions.push(`(c.level = $${targetLevelParamIndex} or c.level is null)`);
+      // When grouping by category without a drill-down filter, enforce that we show
+      // only categories at the target level. This prevents showing deep categories
+      // (e.g., 501) when we want top-level categories (e.g., 7).
+      conditions.push(`c.level = $${targetLevelParamIndex}`);
     }
   }
 
@@ -294,18 +349,75 @@ app.get("/api/breakdown", async (req, res) => {
       const yr = String(row.fiscal_year);
       totals[yr] = (totals[yr] || 0) + Number(row.total_amount);
 
+      let processedRow = { ...row };
+
+      // When grouping by category and filtering by a category, detect self-references
+      // (rows where the category id equals the filtered leaf category) and convert to -1 entry
+      // Note: processedRow.id comes from PostgreSQL as a string (bigint), so coerce to Number
+      if (group === 'category' && leafCategoryId !== null && Number(processedRow.id) === leafCategoryId) {
+        processedRow.id = -1;
+        processedRow.name = 'ไม่ระบุประเภทเพิ่มเติม';
+      }
+
       // Use name as the merge key so duplicate-named rows are aggregated together.
       // Fall back to id only when name is absent.
-      const mergeKey = row.name ?? row.id;
+      const mergeKey = processedRow.name ?? processedRow.id;
       if (!rowMap.has(mergeKey)) {
         // Copy all group-level fields (id, name, level, ...) except year/amount
-        const { fiscal_year, total_amount, pct, ...groupFields } = row;
+        const { fiscal_year, total_amount, pct, ...groupFields } = processedRow;
         rowMap.set(mergeKey, { ...groupFields, amounts: {}, pct: {} });
       }
       const entry = rowMap.get(mergeKey);
       entry.amounts[yr] = (entry.amounts[yr] || 0) + Number(row.total_amount);
       // pct will be re-derived on the client from totals; just accumulate here
       entry.pct[yr] = (entry.pct[yr] || 0) + Number(row.pct);
+    }
+
+    // Note: The main query already includes items directly in the filtered category
+    // via the "or f.category_id = ..." condition, and we convert them to -1 entries above.
+
+    // For category grouping, check each category to see if it has children at the next level
+    // This helps the frontend decide whether to drill into subcategories or show items directly
+    if (group === 'category') {
+      const categoryIds = [...rowMap.values()]
+        .filter(row => row.id !== -1 && row.id !== null)
+        .map(row => row.id);
+
+      if (categoryIds.length > 0) {
+        // Check for each category if it has any children in the category hierarchy
+        // This is independent of the current filter - we just want to know if subcategories exist
+        const childCheckSql = `
+          select 
+            c_check.id as category_id,
+            exists (
+              select 1
+              from dim_category_path cp_check
+              where cp_check.ancestor_id = c_check.id
+                and cp_check.depth = 1
+              limit 1
+            ) as has_children
+          from dim_category c_check
+          where c_check.id = any($1)
+        `;
+
+        const childCheckResult = await query(childCheckSql, [categoryIds]);
+
+        // Map the results to each row
+        const hasChildrenMap = new Map();
+        for (const row of childCheckResult.rows) {
+          hasChildrenMap.set(row.category_id, row.has_children);
+        }
+
+        // Add isTerminal flag to each category row
+        for (const row of rowMap.values()) {
+          if (row.id !== -1 && row.id !== null) {
+            row.isTerminal = !hasChildrenMap.get(row.id);
+          } else if (row.id === -1) {
+            // Self-reference entries are always terminal (they represent items without subcategories)
+            row.isTerminal = true;
+          }
+        }
+      }
     }
 
     // Determine if this is a leaf level (no further drill-down possible)

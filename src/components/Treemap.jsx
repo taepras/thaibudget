@@ -144,7 +144,7 @@ function TailOverlay({
           return;
         }
         if (!isLeafLevel && d?.data?.value?.id != null) {
-          navigateTo(d.data.value.id, d.data.key);
+          navigateTo(d.data.value.id, d.data.key, { isTerminal: d.data.value.isTerminal });
           onClose();
         }
       });
@@ -260,7 +260,7 @@ function TreemapComponent({
   title = 'รวมทุกหน่วยงาน',
   hoveredItemName = null,
   colorScaleMaxValue = 0.3,
-  navigateTo = (key, displayName, groupBy) => { },
+  navigateTo = (key, displayName, groupBy, metadata) => { },
   isLeafLevel = false,
   primaryYear = 0,
   compareYear = 0,
@@ -303,7 +303,7 @@ function TreemapComponent({
             }
           }, 300);
           // Navigate to this item
-          navigateToRef.current(item.value.id, item.key);
+          navigateToRef.current(item.value.id, item.key, { isTerminal: item.value.isTerminal });
           return;
         }
       }
@@ -338,6 +338,7 @@ function TreemapComponent({
         GROWTH: r.amounts?.[compareYear] > 0
           ? (r.amounts[primaryYear] / r.amounts[compareYear]) - 1
           : null,
+        isTerminal: r.isTerminal, // Flag from backend indicating if category has no children
       },
     }));
 
@@ -633,7 +634,7 @@ function TreemapComponent({
         d3.select(this).classed('selected', true);
 
         // Hide all text before zoom and disable hover effects
-        // svg.selectAll('text').transition().duration(transitionDuration).attr('opacity', 0);
+        currentChart.selectAll('text').transition().duration(transitionDuration).attr('opacity', 0);
         // svg.selectAll('g.treemap-piece').attr('pointer-events', 'none');
 
         // Animate zoom on current chart
@@ -683,7 +684,7 @@ function TreemapComponent({
             if (isNavigatingRef.current) setIsNavLoading(true);
           }, 300);
           // Start navigation immediately so the new chart can render while the zoom runs.
-          navigateToRef.current(d?.data?.value?.id, d?.data?.key);
+          navigateToRef.current(d?.data?.value?.id, d?.data?.key, { isTerminal: d?.data?.value?.isTerminal });
         }
       });
 

@@ -46,6 +46,11 @@ const BreadCrumbItem = styled.button`
   white-space: nowrap;
 `
 
+const BreadCrumbText = styled.span`
+  color: white;
+  white-space: nowrap;
+`
+
 const RightSidebar = styled.div`
   display: flex;
   flex-direction: column;
@@ -308,7 +313,8 @@ function DataView({
         >
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, paddingBottom: '16px'}}>
             <BreadCrumbContainer>
-              <BreadCrumbItem>
+              <BreadCrumbText>
+                {/* {JSON.stringify(navigation)} */}
                 <DropdownLink
                   label={`งบประมาณปี ${currentYear}`}
                   options={[
@@ -321,7 +327,7 @@ function DataView({
                   value={currentYear}
                   onChange={setCurrentYear}
                 />
-              </BreadCrumbItem>
+              </BreadCrumbText>
               {navigation
                 .filter((x, i) => i < navigation.length - 1)
                 .map((x, i) => (
