@@ -61,9 +61,9 @@ const breakdownGroups = {
     groupBy: "f.item_description",
   },
   obliged: {
-    select: "coalesce(f.obliged::text, 'null') as id, case when f.obliged is null then 'ไม่ระบุ' when f.obliged = true then 'งบผูกพัน' else 'งบไม่ผูกพัน' end as name",
+    select: `case when f.obliged is null then 'null' when f.obliged = false then 'false' when f.obliged_year_start = f.fiscal_year then 'new' else 'carry' end as id, case when f.obliged is null then 'ไม่ระบุ' when f.obliged = false then 'งบไม่ผูกพัน' when f.obliged_year_start = f.fiscal_year then 'งบผูกพัน (เริ่มต้นปีนี้)' else 'งบผูกพัน (จากปีก่อนๆ)' end as name`,
     join: "",
-    groupBy: "f.obliged",
+    groupBy: `case when f.obliged is null then 'null' when f.obliged = false then 'false' when f.obliged_year_start = f.fiscal_year then 'new' else 'carry' end, case when f.obliged is null then 'ไม่ระบุ' when f.obliged = false then 'งบไม่ผูกพัน' when f.obliged_year_start = f.fiscal_year then 'งบผูกพัน (เริ่มต้นปีนี้)' else 'งบผูกพัน (จากปีก่อนๆ)' end`,
   },
 };
 
@@ -256,15 +256,17 @@ app.get("/api/breakdown", async (req, res) => {
     }
   }
 
-  // Handle obliged filter (can be 'true', 'false', or 'null')
+  // Handle obliged filter
   const filterObligedId = req.query.filterObligedId;
   if (filterObligedId !== undefined && filterObligedId !== null) {
     if (filterObligedId === 'null') {
       conditions.push('f.obliged is null');
-    } else if (filterObligedId === 'true') {
-      conditions.push('f.obliged = true');
     } else if (filterObligedId === 'false') {
       conditions.push('f.obliged = false');
+    } else if (filterObligedId === 'new') {
+      conditions.push('f.obliged = true and f.obliged_year_start = f.fiscal_year');
+    } else if (filterObligedId === 'carry') {
+      conditions.push('f.obliged = true and (f.obliged_year_start < f.fiscal_year or f.obliged_year_start is null)');
     }
   }
 

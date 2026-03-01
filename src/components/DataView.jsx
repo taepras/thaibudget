@@ -184,7 +184,7 @@ const THAI_NAME = {
   project: 'โครงการ',
   category: 'ประเภทรายจ่าย',
   item: 'รายการ',
-  obliged: 'งบผูกผัน',
+  obliged: 'ประเภทงบผูกพัน',
 };
 
 function DataView({

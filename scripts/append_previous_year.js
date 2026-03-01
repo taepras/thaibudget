@@ -66,26 +66,32 @@ const headersByYear = {
 
 // Helper function to create a unique key from a row
 function createKey(row) {
-    return [
-        normalizeDescription(row.MINISTRY),
-        normalizeDescription(row.BUDGETARY_UNIT),
-        normalizeDescription(row.BUDGET_PLAN) ?? 'ไม่ระบุแผนงาน',
-        row.CROSS_FUNC,
-        normalizeDescription(row.OUTPUT),
-        normalizeDescription(row.PROJECT),
-        normalizeDescription(row.CATEGORY_LV1) ?? 'ไม่ระบุประเภท',
+    // Compact category levels: remove empty intermediate levels so that a value
+    // appearing at LV2 in one year and LV3 in another still produces the same key.
+    const rawCategories = [
+        normalizeDescription(row.CATEGORY_LV1),
         normalizeDescription(row.CATEGORY_LV2),
         normalizeDescription(row.CATEGORY_LV3),
         normalizeDescription(row.CATEGORY_LV4),
         normalizeDescription(row.CATEGORY_LV5),
         normalizeDescription(row.CATEGORY_LV6),
+    ];
+    const compactedCategories = rawCategories.filter((v) => v != null && v !== '');
+    // Pad to 6 slots so the join width is stable
+    while (compactedCategories.length < 6) compactedCategories.push('');
+
+    return [
+        normalizeDescription(row.MINISTRY),
+        normalizeDescription(row.BUDGETARY_UNIT),
+        compactedCategories[0] ?? 'ไม่ระบุประเภท',
+        ...compactedCategories.slice(1),
         row.ITEM_DESCRIPTION
     ].join('||');
 }
 
 // Columns whose string values should be fuzzy-merged
 const TEXT_COLUMNS = [
-    'MINISTRY', 'BUDGETARY_UNIT', 'BUDGET_PLAN', 'CROSS_FUNC',
+    'MINISTRY', 'BUDGETARY_UNIT', 'BUDGET_PLAN', 'CROSS_FUNC?',
     'OUTPUT', 'PROJECT',
     'CATEGORY_LV1', 'CATEGORY_LV2', 'CATEGORY_LV3',
     'CATEGORY_LV4', 'CATEGORY_LV5', 'CATEGORY_LV6',
@@ -258,6 +264,8 @@ function readCsvIntoMap(filePath, targetMap, yearKey, setHeaders) {
                 row.CATEGORY_LV2 = normalizeDescription(row.CATEGORY_LV2);
                 row.CATEGORY_LV3 = normalizeDescription(row.CATEGORY_LV3);
                 row.CATEGORY_LV4 = normalizeDescription(row.CATEGORY_LV4);
+                row.CATEGORY_LV5 = normalizeDescription(row.CATEGORY_LV5);
+                row.CATEGORY_LV6 = normalizeDescription(row.CATEGORY_LV6);
 
                 // console.log(row.FISCAL_YEAR, +yearKey - 543, row.FISCAL_YEAR == +yearKey - 543 ? '✅' : '❌');
                 if (row.FISCAL_YEAR != +yearKey - 543) {
@@ -287,7 +295,7 @@ function buildHeaders() {
     // Collect all headers from all years (excluding AMOUNT and AMOUNT_LASTYEAR)
     Object.values(headersByYear).forEach((headers) => {
         headers.forEach((h) => {
-            if (h !== 'AMOUNT' && h !== 'AMOUNT_LASTYEAR') {
+            if (h !== 'AMOUNT' && h !== 'AMOUNT_LASTYEAR' && h !== 'FISCAL_YEAR') {
                 headerSet.add(h);
             }
         });
@@ -299,6 +307,10 @@ function buildHeaders() {
         baseHeaders.push(`AMOUNT_${year}`);
     });
     baseHeaders.push('ROW_SOURCE');
+    // Obliged multi-year span columns
+    baseHeaders.push('OBLIGED_YEAR_START');
+    baseHeaders.push('OBLIGED_YEAR_END');
+    baseHeaders.push('OBLIGED_TOTAL_AMOUNT');
     return baseHeaders;
 }
 
@@ -356,9 +368,43 @@ function writeOuterJoin() {
 
         // Determine row source
         const rowSourceIndex = headers.indexOf('ROW_SOURCE');
+        const yearsWithData = years.filter((year) => dataMapsByYear[year].has(key));
         if (rowSourceIndex !== -1) {
-            const yearsWithData = years.filter((year) => dataMapsByYear[year].has(key));
             values[rowSourceIndex] = yearsWithData.join(',');
+        }
+
+        // Obliged multi-year span: compute start/end year and total amount.
+        // Only populated for rows where OBLIGED?=true in at least one year.
+        const obligedYears = yearsWithData.filter((year) => {
+            const yearData = dataMapsByYear[year].get(key);
+            return yearData && String(yearData.row['OBLIGED?']).toLowerCase() === 'true';
+        });
+        const nonObligedYears = yearsWithData.filter((year) => {
+            const yearData = dataMapsByYear[year].get(key);
+            return yearData && String(yearData.row['OBLIGED?']).toLowerCase() !== 'true';
+        });
+
+        // Flag inconsistency: same item marked OBLIGED?=TRUE in some years and FALSE in others
+        if (obligedYears.length > 0 && nonObligedYears.length > 0) {
+            console.warn(
+                `🔴 OBLIGED inconsistency for key [${baseRow.ITEM_DESCRIPTION}] (${baseRow.MINISTRY} / ${baseRow.BUDGETARY_UNIT}):`,
+                `TRUE in years [${obligedYears.join(',')}], FALSE in years [${nonObligedYears.join(',')}]`
+            );
+        }
+
+        const obligedYearStartIndex = headers.indexOf('OBLIGED_YEAR_START');
+        const obligedYearEndIndex = headers.indexOf('OBLIGED_YEAR_END');
+        const obligedTotalIndex = headers.indexOf('OBLIGED_TOTAL_AMOUNT');
+        if (obligedYears.length > 0) {
+            if (obligedYearStartIndex !== -1) values[obligedYearStartIndex] = Math.min(...obligedYears);
+            if (obligedYearEndIndex !== -1) values[obligedYearEndIndex] = Math.max(...obligedYears);
+            if (obligedTotalIndex !== -1) {
+                const total = obligedYears.reduce((sum, year) => {
+                    const yearData = dataMapsByYear[year].get(key);
+                    return sum + (yearData ? yearData.amount : 0);
+                }, 0);
+                values[obligedTotalIndex] = total;
+            }
         }
 
         writeStream.write(`${values.map(escapeCsvValue).join(',')}\n`);
