@@ -62,12 +62,12 @@ const BarValue = styled.div`
   color: white;
 `;
 
+const ALL_YEARS = [2565, 2566, 2567, 2568, 2569];
+
 function YearComparison({ data, currentYear, onYearClick = () => {} }) {
   const yearData = useMemo(() => {
-    if (!data || !data.totals) return [];
-    return Object.entries(data.totals)
-      .map(([year, amount]) => ({ year, amount }))
-      .sort((a, b) => parseInt(a.year, 10) - parseInt(b.year, 10));
+    const totals = data?.totals ?? {};
+    return ALL_YEARS.map((year) => ({ year, amount: totals[year] ?? 0 }));
   }, [data]);
 
   const maxAmount = useMemo(
@@ -75,47 +75,43 @@ function YearComparison({ data, currentYear, onYearClick = () => {} }) {
     [yearData],
   );
 
-  if (yearData.length === 0) {
-    return (
-      <Ui.Container>
-        <Ui.Title>ข้อมูลรายปี</Ui.Title>
-        <div style={{ opacity: 0.5 }}>ไม่มีข้อมูล</div>
-      </Ui.Container>
-    );
-  }
-
   return (
     <Ui.Container>
       <Ui.Title>
         ข้อมูลรายปีย้อนหลัง
       </Ui.Title>
       <ChartContainer>
-        {yearData.map((d) => (
-          <div
-            key={d.year}
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-            }}
-          >
-            <BarSlot>
-              <Bar
-                style={{
-                  height: `${(d.amount / maxAmount) * 100}%`,
-                  minHeight: '6px',
-                  background: String(d.year) === String(currentYear) ? '#00ac00' : '#555',
-                }}
-                title={`${d.year}: ${abbreviateNumber(d.amount)}`}
-                onClick={() => onYearClick(parseInt(d.year, 10))}
-              >
-                <BarValue>{abbreviateNumber(d.amount)}</BarValue>
-              </Bar>
-            </BarSlot>
-            <BarLabel>{d.year}</BarLabel>
-          </div>
-        ))}
+        {yearData.map((d) => {
+          const hasData = d.amount > 0;
+          const isCurrent = String(d.year) === String(currentYear);
+          return (
+            <div
+              key={d.year}
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}
+            >
+              <BarSlot>
+                <Bar
+                  style={{
+                    height: hasData ? `${(d.amount / maxAmount) * 100}%` : '4px',
+                    minHeight: hasData ? '6px' : '4px',
+                    background: isCurrent ? '#00ac00' : hasData ? '#555' : '#333',
+                    opacity: hasData ? 1 : 0.4,
+                  }}
+                  title={hasData ? `${d.year}: ${abbreviateNumber(d.amount)}` : `${d.year}: ไม่มีข้อมูล`}
+                  onClick={() => onYearClick(d.year)}
+                >
+                  {hasData && <BarValue>{abbreviateNumber(d.amount)}</BarValue>}
+                </Bar>
+              </BarSlot>
+              <BarLabel>{d.year}</BarLabel>
+            </div>
+          );
+        })}
       </ChartContainer>
       {/* <div style={{ fontSize: 11, opacity: 0.6 }}>
         {yearData.map((d) => (

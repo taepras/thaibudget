@@ -67,6 +67,38 @@ const breakdownGroups = {
   },
 };
 
+app.get("/api/dimensions", async (req, res) => {
+  try {
+    const [ministriesResult, categoriesResult] = await Promise.all([
+      query(`
+        select m.id, m.name
+        from dim_ministry m
+        order by m.name
+      `),
+      query(`
+        select c.id, c.name
+        from dim_category c
+        where c.level = 1
+        order by c.name
+      `),
+    ]);
+
+    const obligedTypes = [
+      { id: 'false', name: 'งบไม่ผูกพัน' },
+      { id: 'new',   name: 'งบผูกพัน (เริ่มต้นปีนี้)' },
+      { id: 'carry', name: 'งบผูกพัน (จากปีก่อนๆ)' },
+    ];
+
+    return res.json({
+      ministries: ministriesResult.rows,
+      categoryLv1: categoriesResult.rows,
+      obligedTypes,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 app.get("/api/breakdown", async (req, res) => {
   // Accept ?year=2569 (single) or ?year=2568&year=2569 (multiple)
   const rawYears = Array.isArray(req.query.year) ? req.query.year : [req.query.year];
