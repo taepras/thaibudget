@@ -200,6 +200,7 @@ function App() {
       const params = {
         year: [2569, 2568, 2567, 2566, 2565], // todo: dynamic years
         group: navigation[navigation.length - 1].groupBy,
+        collapseCategories: 'true',
       };
 
       // Build filter parameters from navigation trail
@@ -304,6 +305,13 @@ function App() {
           return newNav;
         });
         return; // Let the effect re-run with new groupBy
+      } else if (navigation[navigation.length - 1].groupBy === 'category' && result.group === 'item') {
+        // Special case: if we drilled into a category and got item rows, update the navigation object to reflect that we're now at the 'item' groupBy level.
+        setNavigation((nav) => {
+          const newNav = [...nav];
+          newNav[newNav.length - 1].groupBy = 'item';
+          return newNav;
+        });
       }
 
       setData(result);
@@ -327,49 +335,6 @@ function App() {
     const mx = d3.max(sumWindows);
     return sumWindows.filter((x) => mx === x).length > 1;
   }, [sumWindows]);
-
-  // const preprocessedData = useMemo(() => data
-  //   .map((d) => {
-  //     const amountThisYear = parseFloat(d.AMOUNT_2569.replace(/,/g, '')) || 0;
-  //     const amountLastYear = parseFloat(d.AMOUNT_2568.replace(/,/g, '')) || 0;
-  //     return {
-  //       ...d,
-  //       AMOUNT: amountThisYear,
-  //       AMOUNT_LASTYEAR: amountLastYear,
-  //       DIFF: amountThisYear - amountLastYear,
-  //       GROWTH: amountLastYear > 0 ? (amountThisYear - amountLastYear) / amountLastYear : Infinity,
-  //       OUTPUT_PROJECT: (d.OUTPUT || d.PROJECT) ? (d.OUTPUT + d.PROJECT) : 'ไม่ระบุโครงการ/ผลผลิต',
-  //       MINISTRY: d.MINISTRY.replace(/\([0-9]+\)$/, '').trim(),
-  //       ITEM: [
-  //         d.ITEM_DESCRIPTION,
-  //         d.CATEGORY_LV2,
-  //         d.CATEGORY_LV3,
-  //         d.CATEGORY_LV4,
-  //         d.CATEGORY_LV5,
-  //         d.CATEGORY_LV6,
-  //       ]
-  //         .filter((x) => x)
-  //         .join(' - '),
-  //     };
-  //   }), [data]);
-
-  // const location = useLocation();
-  // const history = useHistory();
-
-  // useEffect(() => {
-  //   const f = location.pathname.split('/').slice(1);
-  //   console.log('f', f, f.length > 0 && f[0] ? f : ['all']);
-  //   setFilters(f.length > 0 && f[0] ? f : ['all']);
-  // }, [location]);
-
-  // const navigateTo = (x, i) => {
-  //   console.log(x, i);
-  //   const temp = [...filters];
-  //   temp.splice(i + 1);
-  //   // setFilters(temp);
-  //   console.log('temp', temp);
-  //   history.push(`/${temp.join('/')}`);
-  // };
 
   return (
     <FullView>

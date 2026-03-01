@@ -128,6 +128,7 @@ const REPLACEMENTS = [
     ['งบรายจ่ายอิ่น', 'งบรายจ่ายอื่น'],
     ['อุ ดหนุน', 'อุดหนุน'],
     ['ดาเนินงาน', 'ดำเนินงาน'],
+    ['ช าระ', 'ชำระ'],
 ];
 
 // Strip spaces, entire (...) groups, unclosed ( fragments, and optional การ for fuzzy comparison.

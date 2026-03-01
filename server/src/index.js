@@ -201,6 +201,8 @@ app.get("/api/breakdown", async (req, res) => {
     }
   }
 
+  const collapseCategories = req.query.collapseCategories === 'true';
+
   const filterCategoryId = parseId(req.query.filterCategoryId);
   let filterCategoryParamIndex = null;
   let isTerminalCategory = false; // true if path ends with -1
@@ -274,7 +276,20 @@ app.get("/api/breakdown", async (req, res) => {
     group = 'item';
     // Remove the category-grouping joins that were pre-added for the 'category' groupConfig
     joins.delete(breakdownGroups.category.join);
+    // Also add the item groupConfig join (empty string, but do this for correctness)
+    // and switch groupConfig so the SELECT clause matches the new group
+    if (breakdownGroups.item.join) joins.add(breakdownGroups.item.join);
   }
+
+  // Resolve groupConfig after potential group switch (isTerminalCategory may change group to 'item')
+  const resolvedGroupConfig = breakdownGroups[group];
+
+  // Snapshot filter state (params/conditions/joins) before category-level conditions are added.
+  // Used by the collapseCategories feature to run filter-aware child-count checks.
+  // Rename the main table alias f -> f_col so these fragments work inside a subquery.
+  const filterParamsSnapshot = [...params];
+  const filterConditionsSnapshot = conditions.map(c => c.replace(/\bf\./g, 'f_col.'));
+  const filterJoinsSnapshot = [...joins].map(j => j.replace(/\bf\./g, 'f_col.'));
 
   // For category grouping, default to level 1 (top-level categories) unless specified
   if (group === 'category') {
@@ -326,14 +341,14 @@ app.get("/api/breakdown", async (req, res) => {
 
   const sql = `
     select
-      ${groupConfig.select},
+      ${resolvedGroupConfig.select},
       f.fiscal_year,
       sum(f.amount) as total_amount,
       sum(f.amount) / nullif(sum(sum(f.amount)) over (partition by f.fiscal_year), 0) as pct
     from fact_budget_item f
     ${[...joins].join(" ")}
     where ${conditions.join(" and ")}
-    group by ${groupConfig.groupBy}, f.fiscal_year
+    group by ${resolvedGroupConfig.groupBy}, f.fiscal_year
     order by f.fiscal_year, total_amount desc
   `;
 
@@ -375,6 +390,66 @@ app.get("/api/breakdown", async (req, res) => {
 
     // Note: The main query already includes items directly in the filtered category
     // via the "or f.category_id = ..." condition, and we convert them to -1 entries above.
+
+    // Category collapse: for each row, follow single-child chains (filter-aware) and merge names.
+    // e.g. if งบลงทุน → ค่าครุภัณฑ์ฯ → ค่าที่ดินฯ (each has 1 child in the current filter),
+    // collapse to a single row named "งบลงทุน > ค่าครุภัณฑ์ฯ > ค่าที่ดินฯ" with the deepest id.
+    if (collapseCategories && group === 'category') {
+      const MAX_COLLAPSE_DEPTH = 10;
+
+      const getFilteredChildren = async (parentId) => {
+        const colParams = [...filterParamsSnapshot, parentId];
+        const parentParamIdx = colParams.length;
+        const colSql = `
+          select c_child.id, c_child.name
+          from dim_category c_child
+          where c_child.parent_id = $${parentParamIdx}
+            and exists (
+              select 1
+              from fact_budget_item f_col
+              ${filterJoinsSnapshot.join('\n              ')}
+              join dim_category_path cp_col_self on f_col.category_id = cp_col_self.descendant_id
+              where ${filterConditionsSnapshot.join(' and ')}
+                and cp_col_self.ancestor_id = c_child.id
+            )
+        `;
+        const result = await query(colSql, colParams);
+        return result.rows;
+      };
+
+      // Collect changes first to avoid modifying Map while iterating
+      const collapseChanges = [];
+      for (const [mergeKey, row] of rowMap.entries()) {
+        if (row.id === -1 || row.id === null || row.id === '-1') continue;
+
+        let currentId = Number(row.id);
+        const nameParts = [row.name];
+        let depth = 0;
+
+        while (depth < MAX_COLLAPSE_DEPTH) {
+          const children = await getFilteredChildren(currentId);
+          if (children.length !== 1) break;
+          nameParts.push(children[0].name);
+          currentId = Number(children[0].id);
+          depth++;
+        }
+
+        if (nameParts.length > 1) {
+          collapseChanges.push({ oldKey: mergeKey, row, newName: nameParts.join(' > '), newId: currentId });
+        }
+      }
+
+      // Apply changes and update the level to the deepest category for correct isTerminal detection
+      for (const { oldKey, row, newName, newId } of collapseChanges) {
+        rowMap.delete(oldKey);
+        row.name = newName;
+        row.id = String(newId);
+        row.collapsedFrom = oldKey; // optional: keep original name for debugging
+        const levelResult = await query('select level from dim_category where id = $1', [newId]);
+        if (levelResult.rows.length > 0) row.level = levelResult.rows[0].level;
+        rowMap.set(newName, row);
+      }
+    }
 
     // For category grouping, check each category to see if it has children at the next level
     // This helps the frontend decide whether to drill into subcategories or show items directly
