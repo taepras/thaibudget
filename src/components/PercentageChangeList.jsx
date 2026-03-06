@@ -137,6 +137,7 @@ function PercentageChangeList({
     percent: '% ความเปลี่ยนแปลง',
     amount: 'จำนวนเงินเปลี่ยนแปลง',
     budget: 'จำนวนเงินงบประมาณ',
+    alphabet: 'ชื่อตัวอักษร (A-Z)',
   };
 
   const changeData = useMemo(() => {
@@ -160,6 +161,9 @@ function PercentageChangeList({
         amounts: row.amounts,
       };
     }).sort((a, b) => {
+      if (sortMode === 'alphabet') {
+        return a.name.localeCompare(b.name, 'th');
+      }
       if (a.isNew && !b.isNew) return -1;
       if (!a.isNew && b.isNew) return 1;
       if (sortMode === 'amount') return b.diff - a.diff;
@@ -188,6 +192,7 @@ function PercentageChangeList({
             { value: 'percent', label: '% ความเปลี่ยนแปลง' },
             { value: 'amount', label: 'จำนวนเงินเปลี่ยนแปลง' },
             { value: 'budget', label: 'จำนวนเงินงบประมาณ' },
+            { value: 'alphabet', label: 'ชื่อตัวอักษร (A-Z)' },
           ]}
           value={sortMode}
           onChange={setSortMode}

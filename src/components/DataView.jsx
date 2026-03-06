@@ -1,5 +1,5 @@
 import React, {
-  useCallback, useMemo, useState, useRef, useEffect,
+  useCallback, useMemo, useState, useRef,
 } from 'react';
 import styled from 'styled-components';
 import { useHistory, useLocation } from 'react-router-dom';
@@ -9,6 +9,7 @@ import YearComparison from './YearComparison';
 import PercentageChangeList from './PercentageChangeList';
 import FullView from './FullView';
 import DropdownLink from './DropdownLink';
+import ResizableSplitView from './ResizableSplitView';
 
 const TOP_BAR_HEIGHT = 60;
 
@@ -51,94 +52,7 @@ const BreadCrumbText = styled.span`
   white-space: nowrap;
 `
 
-const RightSidebar = styled.div`
-  display: flex;
-  flex-direction: column;
-  width: ${props => props.$width}px;
-  min-width: 180px;
-  max-width: 600px;
-  // border-left: 1px solid rgba(255, 255, 255, 0.1);
-  overflow: hidden;
-  flex-shrink: 0;
 
-  @media screen and (orientation: portrait) {
-    width: 100%;
-    display: ${props => props.$mobileVisible ? 'flex' : 'none'};
-  }
-`;
-
-const DragHandle = styled.div`
-  width: 6px;
-  cursor: col-resize;
-  flex-shrink: 0;
-  background: transparent;
-  transition: background 0.15s;
-  position: relative;
-  z-index: 10;
-
-  &:hover, &.dragging {
-    background: rgba(255, 255, 255, 0.15);
-  }
-
-  @media screen and (orientation: portrait) {
-    display: none;
-  }
-`;
-
-const MainTreemapContainer = styled.div`
-  position: relative;
-  flex-grow: 1;
-
-  @media screen and (orientation: portrait) {
-    display: ${props => props.$mobileVisible ? 'block' : 'none'};
-  }
-`;
-
-const FlexContentArea = styled.div`
-  display: flex;
-  flex-direction: row;
-  flex-grow: 1;
-  overflow: hidden;
-
-  @media screen and (orientation: portrait) {
-    padding-bottom: 48px;
-  }
-`;
-
-const MobileBottomMenu = styled.div`
-  display: none;
-  
-  @media screen and (orientation: portrait) {
-    display: flex;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: #111;
-    border-top: 1px solid rgba(255, 255, 255, 0.2);
-    z-index: 100;
-  }
-`;
-
-const MobileMenuButton = styled.button`
-  flex: 1;
-  padding: 12px;
-  background: ${props => props.$active ? 'rgba(255, 255, 255, 0.1)' : 'transparent'};
-  border: none;
-  color: white;
-  font-size: 14px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 0.2s;
-  
-  &:active {
-    background: rgba(255, 255, 255, 0.15);
-  }
-  
-  ${props => props.$active && `
-    border-top: 2px solid white;
-  `}
-`;
 
 const ResponsiveImage = styled.img`
   width: 100%;
@@ -202,41 +116,7 @@ function DataView({
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredItemName, setHoveredItemName] = useState(null);
-  const [mobileView, setMobileView] = useState('structure'); // 'structure' or 'list'
-  const [sidebarWidth, setSidebarWidth] = useState(320);
   const treemapRef = useRef(null);
-  const dragHandleRef = useRef(null);
-  const isDragging = useRef(false);
-  const dragStartX = useRef(0);
-  const dragStartWidth = useRef(0);
-
-  const onDragMouseDown = useCallback((e) => {
-    isDragging.current = true;
-    dragStartX.current = e.clientX;
-    dragStartWidth.current = sidebarWidth;
-    dragHandleRef.current?.classList.add('dragging');
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-
-    const onMouseMove = (moveEvent) => {
-      if (!isDragging.current) return;
-      const delta = dragStartX.current - moveEvent.clientX;
-      const newWidth = Math.min(600, Math.max(180, dragStartWidth.current + delta));
-      setSidebarWidth(newWidth);
-    };
-
-    const onMouseUp = () => {
-      isDragging.current = false;
-      dragHandleRef.current?.classList.remove('dragging');
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-  }, [sidebarWidth]);
 
   const filterDataByQuery = useCallback((datum, query) => {
     const searchLevels = [
@@ -456,21 +336,21 @@ function DataView({
           </CreditLink>
         </div>
       </div>
-      <FlexContentArea>
-        <MainTreemapContainer $mobileVisible={mobileView === 'structure'}>
+      <ResizableSplitView
+        mainLabel="โครงสร้างงบ"
+        sidebarLabel="รายการย่อย"
+        defaultSidebarWidth={400}
+        minSidebarWidth={240}
+        maxSidebarWidth={1000}
+        main={
           <Treemap
             ref={treemapRef}
             title={navigation[navigation.length - 1].displayName}
             data={data}
             isLoading={isLoading}
             filters={filters}
-            // hierarchyBy={effectiveHierarchy}
             setFilters={setFilters}
-            // groupingAxis={groupingAxis}
-            setCurrentSum={(x) => {
-              // console.log('!!setting sum', x, setCurrentSum);
-              setCurrentSum(x);
-            }}
+            setCurrentSum={(x) => { setCurrentSum(x); }}
             fullValue={fullValue}
             index={index}
             isMultipleMaxSum={isMultipleMaxSum}
@@ -481,40 +361,27 @@ function DataView({
             primaryYear={currentYear}
             compareYear={compareYear}
           />
-        </MainTreemapContainer>
-        <DragHandle ref={dragHandleRef} onMouseDown={onDragMouseDown} />
-        <RightSidebar $mobileVisible={mobileView === 'list'} $width={sidebarWidth}>
-          <div style={{ flexShrink: 0 }}>
-            <YearComparison
+        }
+        sidebar={
+          <>
+            <div style={{ flexShrink: 0 }}>
+              <YearComparison
+                data={data}
+                currentYear={currentYear}
+                onYearClick={setCurrentYear}
+              />
+            </div>
+            <PercentageChangeList
               data={data}
-              currentYear={currentYear}
-              onYearClick={setCurrentYear}
+              hoveredItemName={hoveredItemName}
+              setHoveredItemName={setHoveredItemName}
+              onItemClick={handlePercentageListClick}
+              primaryYear={currentYear}
+              compareYear={compareYear}
             />
-          </div>
-          <PercentageChangeList
-            data={data}
-            hoveredItemName={hoveredItemName}
-            setHoveredItemName={setHoveredItemName}
-            onItemClick={handlePercentageListClick}
-            primaryYear={currentYear}
-            compareYear={compareYear}
-          />
-        </RightSidebar>
-      </FlexContentArea>
-      <MobileBottomMenu>
-        <MobileMenuButton
-          $active={mobileView === 'structure'}
-          onClick={() => setMobileView('structure')}
-        >
-          โครงสร้างงบ
-        </MobileMenuButton>
-        <MobileMenuButton
-          $active={mobileView === 'list'}
-          onClick={() => setMobileView('list')}
-        >
-          รายการย่อย
-        </MobileMenuButton>
-      </MobileBottomMenu>
+          </>
+        }
+      />
     </FullView>
   );
 }

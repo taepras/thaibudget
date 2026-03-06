@@ -218,7 +218,7 @@ function App() {
       const params = {
         year: [2569, 2568, 2567, 2566, 2565], // todo: dynamic years
         group: navigation[navigation.length - 1].groupBy,
-        collapseCategories: 'true',
+        collapseCategories: 'false', // fixme: buggy collapse
       };
 
       // filter by filter states
