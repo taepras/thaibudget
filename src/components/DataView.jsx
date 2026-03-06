@@ -16,7 +16,7 @@ const TOP_BAR_HEIGHT = 60;
 const BreadCrumbContainer = styled.div`
   display: flex;
   align-items: center;
-  font-size: 14px;
+  font-size: 0.875rem;
   flex-wrap: wrap;
   gap: 8px;
   opacity: 0.6;

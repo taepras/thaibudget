@@ -23,7 +23,7 @@ const Toggle = styled.button`
     display: inline-block;
     // text-decoration: underline;
     margin-left: 4px;
-    font-size: 11px;
+    font-size: 0.75rem;
     font-weight: normal;
   }
 `;
@@ -47,7 +47,7 @@ const MenuItem = styled.button`
   width: 100%;
   text-align: left;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 0.75rem;
   transition: all 0.2s;
 
   &:hover {

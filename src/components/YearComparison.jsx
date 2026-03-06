@@ -9,13 +9,13 @@ import Ui from './BasicUi';
 //   flex-direction: column;
 //   padding: 16px;
 //   color: white;
-//   font-size: 12px;
+//   font-size: 0.75rem;
 //   flex-grow: 1;
 // `;
 
 // const Title = styled.h3`
 //   margin: 0 0 12px 0;
-//   font-size: 14px;
+//   font-size: 0.875rem;
 //   opacity: 0.8;
 //   word-break: break-word;
 // `;
@@ -51,13 +51,14 @@ const Bar = styled.div`
 `;
 
 const BarLabel = styled.div`
-  font-size: 10px;
+  font-size: 0.75rem;
   margin-top: 4px;
   text-align: center;
+  opacity: 0.6;
 `;
 
 const BarValue = styled.div`
-  font-size: 9px;
+  font-size: 0.75rem;
   // opacity: 0.6;
   color: white;
 `;

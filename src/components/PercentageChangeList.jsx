@@ -2,33 +2,17 @@ import React, {
   useMemo, useState, useRef, useCallback, useEffect,
 } from 'react';
 import styled from 'styled-components';
-import { abbreviateNumber } from '../utils/numberFormat';
+import { abbreviateNumber, signedNumber } from '../utils/numberFormat';
 import DropdownLink from './DropdownLink';
 import Ui from './BasicUi';
 
-// const Container = styled.div`
-//   display: flex;
-//   flex-direction: column;
-//   padding: 16px;
-//   // background: #1a1a1a;
-//   color: white;
-//   font-size: 11px;
-//   overflow-y: auto;
-//   flex-grow: 1;
-//   position: relative;
-// `;
-
-// const Title = styled.h3`
-//   margin: 0 0 12px 0;
-//   font-size: 14px;
-//   opacity: 0.8;
-//   word-break: break-word;
-// `;
-
 const ListItem = styled.div`
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;  
   justify-content: space-between;
-  padding: 8px 0;
+  padding: 12px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   align-items: center;
   cursor: pointer;
@@ -43,6 +27,26 @@ const ListItem = styled.div`
   }
 `;
 
+const ListItemTitle = styled.div`
+  display: flex;
+  width: 100%;
+  text-align: left;
+`
+const ListItemDetails = styled.div`
+  text-align: right;
+  // padding-left: 40px;
+  display: flex;
+  width: 100%;
+`
+
+const ListContainer = styled.div`
+  flex-grow: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-c
+`
+
 const Name = styled.span`
   flex: 1;
   overflow: hidden;
@@ -52,9 +56,9 @@ const Name = styled.span`
 `;
 
 const PercentChange = styled.span`
-  font-weight: bold;
   white-space: nowrap;
-  width: 46px;
+  // font-weight: bold;
+  // width: 46px;
   text-align: right;
   flex-shrink: 0;
   color: ${(props) => {
@@ -89,7 +93,7 @@ function Sparkline({
     <svg
       width={width}
       height={height}
-      style={{ flexShrink: 0, marginRight: 6, alignSelf: 'center', overflow: 'visible' }}
+      style={{ flexShrink: 0, alignSelf: 'center', overflow: 'visible' }}
     >
       <defs>
         <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
@@ -111,10 +115,10 @@ function PercentageChangeList({
   primaryYear = 2569,
   compareYear = 2568
 }) {
-  const [sortMode, setSortMode] = useState('percent');
+  const [sortMode, setSortMode] = useState('amount');
 
   // Virtual scroll state
-  const ROW_HEIGHT = 34; // px — must match ListItem height below
+  const ROW_HEIGHT = 48; // px — must match ListItem height below
   const OVERSCAN = 8;    // extra rows rendered above/below viewport
   const scrollRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -135,9 +139,9 @@ function PercentageChangeList({
 
   const sortModeLabels = {
     percent: '% ความเปลี่ยนแปลง',
-    amount: 'จำนวนเงินเปลี่ยนแปลง',
-    budget: 'จำนวนเงินงบประมาณ',
-    alphabet: 'ชื่อตัวอักษร (A-Z)',
+    diff: 'จำนวนเงินเปลี่ยนแปลง',
+    amount: 'จำนวนเงินงบประมาณ',
+    alphabet: 'ตัวอักษร',
   };
 
   const changeData = useMemo(() => {
@@ -166,79 +170,101 @@ function PercentageChangeList({
       }
       if (a.isNew && !b.isNew) return -1;
       if (!a.isNew && b.isNew) return 1;
-      if (sortMode === 'amount') return b.diff - a.diff;
-      if (sortMode === 'budget') return b.amountCurrent - a.amountCurrent;
+      if (sortMode === 'diff') return b.diff - a.diff;
+      if (sortMode === 'amount') return b.amountCurrent - a.amountCurrent;
       return b.growth - a.growth;
     });
   }, [data, primaryYear, compareYear, sortMode]);
 
+  const [searchFilter, setSearchFilter] = useState('');
+
+  useEffect(() => {
+    setSearchFilter('');
+  }, [data]);
+
+  const filteredChangeData = useMemo(() => {
+    if (!searchFilter) return changeData;
+    const lowerFilter = searchFilter.toLowerCase();
+    return changeData.filter((item) => item.name.toLowerCase().includes(lowerFilter));
+  }, [changeData, searchFilter]);
+
   return (
     <Ui.Container>
-      <Ui.Title style={{ marginBottom: 0 }}>
-        ความเปลี่ยนแปลง
-      </Ui.Title>
-      <div
-        style={{
-          marginBottom: '12px',
-          fontSize: 12,
-          position: 'relative',
-          display: 'inline-block',
-          opacity: 0.6,
-        }}
-      >
-        <DropdownLink
-          label={`เรียงตาม ${sortModeLabels[sortMode]}${compareYear ? ` เทียบกับปี ${String(compareYear).slice(-2)}` : ''}`}
-          options={[
-            { value: 'percent', label: '% ความเปลี่ยนแปลง' },
-            { value: 'amount', label: 'จำนวนเงินเปลี่ยนแปลง' },
-            { value: 'budget', label: 'จำนวนเงินงบประมาณ' },
-            { value: 'alphabet', label: 'ชื่อตัวอักษร (A-Z)' },
-          ]}
-          value={sortMode}
-          onChange={setSortMode}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ marginBottom: 0, flexGrow: 1 }}>
+          <Ui.Title style={{ marginBottom: 0, flexGrow: 1 }}>
+            รายการในกลุ่มนี้
+          </Ui.Title>
+          <div
+            style={{
+              // marginBottom: '12px',
+              fontSize: 12,
+              position: 'relative',
+              display: 'inline-block',
+              opacity: 0.6,
+            }}
+          >
+            <DropdownLink
+              label={`เรียงตาม ${sortModeLabels[sortMode]}${compareYear && ['percent', 'diff'].includes(sortMode) ? ` เทียบกับปี ${String(compareYear).slice(-2)}` : ''}`}
+              options={[
+                { value: 'percent', label: '% ความเปลี่ยนแปลง' },
+                { value: 'diff', label: 'จำนวนเงินเปลี่ยนแปลง' },
+                { value: 'amount', label: 'จำนวนเงินงบประมาณ' },
+                { value: 'alphabet', label: 'ชื่อตัวอักษร (A-Z)' },
+              ]}
+              value={sortMode}
+              onChange={setSortMode}
+            />
+          </div>
+        </div>
+        <input
+          type="text"
+          placeholder="ค้นหา..."
+          style={{
+            // marginBottom: 12,
+            padding: '4px 8px',
+            fontSize: 14,
+            boxSizing: 'border-box',
+            maxWidth: '144px',
+          }}
+          onInput={(e) => setSearchFilter(e.target.value)}
+          value={searchFilter || ''}
         />
       </div>
+
       {changeData.length > 0 && (
-        <div
+        <ListContainer
           ref={scrollRef}
           onScroll={handleScroll}
-          style={{ flexGrow: 1, overflowY: 'auto' }}
+          style={{ flexGrow: 1 }}
+
         >
           {(() => {
-            const totalHeight = changeData.length * ROW_HEIGHT;
+            // lazy loading
+            const totalHeight = filteredChangeData.length * ROW_HEIGHT;
             const startIdx = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
             const endIdx = Math.min(
-              changeData.length - 1,
+              filteredChangeData.length - 1,
               Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + OVERSCAN,
             );
-            const visible = changeData.slice(startIdx, endIdx + 1);
+            const visible = filteredChangeData.slice(startIdx, endIdx + 1);
             const padTop = startIdx * ROW_HEIGHT;
             const padBottom = totalHeight - (endIdx + 1) * ROW_HEIGHT;
             return (
               <>
                 <div style={{ height: padTop }} />
                 {visible.map((item) => {
-                  let displayValue = '';
                   let displayColor = '';
-                  if (sortMode === 'percent') {
-                    displayValue = item.isNew ? 'ใหม่' : `${item.growth > 0 ? '+' : ''}${(item.growth * 100).toFixed(1)}%`;
-                    if (item.isNew) displayColor = '#00cccc';
-                    else if (item.growth > 0.05) displayColor = '#00ac00';
-                    else if (item.growth > 0) displayColor = '#88dd88';
-                    else if (item.growth > -0.05) displayColor = '#ff9999';
-                    else displayColor = '#cc0000';
-                  } else if (sortMode === 'amount') {
-                    displayValue = `${item.diff > 0 ? '+' : ''}${abbreviateNumber(item.diff)}`;
-                    displayColor = item.diff >= 0 ? '#00ac00' : '#cc0000';
-                  } else if (sortMode === 'budget') {
-                    displayValue = abbreviateNumber(item.amountCurrent);
-                    displayColor = '#00ac00';
-                  }
+                  if (item.isNew) displayColor = '#00cccc';
+                  else if (item.growth > 0.05) displayColor = '#00ac00';
+                  else if (item.growth > 0) displayColor = '#88dd88';
+                  else if (item.growth > -0.05) displayColor = '#ff9999';
+                  else displayColor = '#cc0000';
                   return (
                     <ListItem
                       key={item.name}
                       style={{
-                        height: ROW_HEIGHT,
+                        // height: ROW_HEIGHT,
                         boxSizing: 'border-box',
                         backgroundColor: hoveredItemName === item.name ? 'rgba(255,255,255,0.1)' : 'transparent',
                         borderRadius: '4px',
@@ -247,13 +273,18 @@ function PercentageChangeList({
                       onMouseEnter={() => setHoveredItemName(item.name)}
                       onMouseLeave={() => setHoveredItemName(null)}
                     >
-                      <Name title={item.name}>{item.name}</Name>
-                      <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                        <Sparkline amounts={item.amounts} years={data?.years} uid={item.id} color={displayColor} />
+                      <ListItemTitle>
+                        <Name title={item.name}>{item.name}</Name>
+                        <Sparkline amounts={item.amounts} years={data?.years} uid={item.id} color={displayColor} height={12}/>
+                      </ListItemTitle>
+                      <ListItemDetails>
+                        <div style={{display: 'flex', flexGrow: 1, opacity: 0.6}}>
+                          {item.amountCurrent.toLocaleString()} บาท
+                        </div>
                         <PercentChange growth={item.growth} style={{ color: displayColor }}>
-                          {displayValue}
+                          {item.isNew ? `รายการใหม่` : `(${abbreviateNumber(item.diff, true)} บาท / ${signedNumber(item.growth * 100, 1)}%)`}
                         </PercentChange>
-                      </div>
+                      </ListItemDetails>
                     </ListItem>
                   );
                 })}
@@ -261,7 +292,7 @@ function PercentageChangeList({
               </>
             );
           })()}
-        </div>
+        </ListContainer>
       )}
       {changeData.length === 0 && (
         <div style={{ opacity: 0.5 }}>ไม่มีข้อมูล</div>

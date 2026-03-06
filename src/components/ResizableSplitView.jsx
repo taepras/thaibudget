@@ -47,6 +47,7 @@ const SidebarPane = styled.div`
   min-width: 180px;
   max-width: 600px;
   overflow: hidden;
+  gap: 8px;
   flex-shrink: 0;
 
   @media screen and (orientation: portrait) {
@@ -77,7 +78,7 @@ const MobileMenuButton = styled.button`
     props.$active ? 'rgba(255, 255, 255, 0.1)' : 'transparent'};
   border: none;
   color: white;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-family: inherit;
   cursor: pointer;
   transition: background 0.2s;

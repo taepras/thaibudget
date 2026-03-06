@@ -6,7 +6,7 @@ import * as d3 from 'd3';
 import useDimensions from 'react-cool-dimensions';
 import ReactTooltip from 'react-tooltip';
 import { useHistory, useLocation } from 'react-router-dom';
-import { abbreviateNumber } from '../utils/numberFormat';
+import { abbreviateNumber, signedNumber } from '../utils/numberFormat';
 import FullView from './FullView';
 import Ui from './BasicUi';
 
@@ -564,19 +564,19 @@ function TreemapComponent({
     treemapPieceGroupEnter
       .append('text')
       .attr('class', 'text-name')
-      .attr('font-size', '12px')
+      .attr('font-size', '0.75rem')
       .attr('fill', 'white');
 
     treemapPieceGroupEnter
       .append('text')
       .attr('class', 'text-value')
-      .attr('font-size', '12px')
+      .attr('font-size', '0.75rem')
       .attr('fill', 'white');
 
     treemapPieceGroupEnter
       .append('text')
       .attr('class', 'text-growth')
-      .attr('font-size', '12px')
+      .attr('font-size', '0.75rem')
       .attr('fill', 'white');
 
     const treemapPieceMerged = treemapPieceGroupEnter.merge(treemapPieceGroup);
@@ -592,15 +592,15 @@ function TreemapComponent({
         const nodeGrowth = d?.GROWTH ?? 0;
         const lastYear = d?.AMOUNT_LASTYEAR;
         const growthText = nodeGrowth != null
-          ? `<span style="color:${nodeGrowth > 0 ? '#25d925' : '#f11919'}">${nodeGrowth > 0 ? '+' : ''}${(nodeGrowth * 100).toFixed(1)}%</span>`
+          ? `<span style="color:${nodeGrowth > 0 ? '#25d925' : '#f11919'}">${signedNumber(nodeGrowth * 100, 1)}%</span>`
           : 'N/A';
         const lastYearText = lastYear != null ? abbreviateNumber(lastYear) : 'N/A';
         const tip = [
           `<div><b>${d?.data?.key}</b></div>`,
-          `<div style="opacity: 0.6">${primaryYear}: ${abbreviateNumber(d?.value)}</div>`,
-          `<div style="opacity: 0.6">${compareYear}: ${lastYearText}</div>`,
+          `<div style="opacity: 0.6">${primaryYear}: ${abbreviateNumber(d?.value)} บาท</div>`,
+          `<div style="opacity: 0.6">${compareYear}: ${lastYearText} บาท</div>`,
           `<div><span style="opacity: 0.6">เติบโต: </span>${growthText}</div>`,
-          `<div style="opacity: 0.6; font-size: 12px; font-style: italic; margin-top: 0.25rem;">กดเพื่อดูรายละเอียด</div>`,
+          `<div style="opacity: 0.6; font-size: 0.75rem; font-style: italic; margin-top: 0.25rem;">กดเพื่อดูรายละเอียด</div>`,
         ].join('');
         e.currentTarget.setAttribute('data-html', 'true');
         e.currentTarget.setAttribute('data-tip', tip);
@@ -727,7 +727,7 @@ function TreemapComponent({
       .attr('fill-opacity', 0.6)
       .attr('dominant-baseline', 'hanging')
       .attr('opacity', 1)
-      .text((d) => (d.x1 - d.x0 > 40 && d.y1 - d.y0 > 28) ? abbreviateNumber(d.value) : '');
+      .text((d) => (d.x1 - d.x0 > 40 && d.y1 - d.y0 > 28) ? `${abbreviateNumber(d.value)} บาท` : '');
 
     treemapPieceMerged.select('text.text-growth')
       .attr('x', 5)

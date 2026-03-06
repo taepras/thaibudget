@@ -8,13 +8,13 @@
  * @param {number} num - The number to abbreviate
  * @returns {string} Abbreviated number with Thai suffix
  */
-export function abbreviateNumber(num) {
+export function abbreviateNumber(num, signed=false) {
   if (!num || num === 0) return '0 บาท';
 
-  const sign = num < 0 ? '-' : '';
+  const sign = num < 0 ? '-' : signed ? '+' : '';
   const absNum = Math.abs(num);
 
-  let suffix = 'บาท';
+  let suffix = '';
   let divisor = 1;
 
   // if (absNum >= 1e12) {
@@ -22,13 +22,13 @@ export function abbreviateNumber(num) {
   //   divisor = 1e12;
   // } else
   if (absNum >= 1e9) {
-    suffix = 'B บาท';
+    suffix = 'B';
     divisor = 1e9;
   } else if (absNum >= 1e6) {
-    suffix = 'M บาท';
+    suffix = 'M';
     divisor = 1e6;
   } else if (absNum >= 1000) {
-    suffix = 'k บาท';
+    suffix = 'k';
     divisor = 1000;
   }
 
@@ -90,4 +90,14 @@ export function abbreviateNumber(num) {
 export function formatNumberWithCommas(num) {
   if (!num) return '0';
   return Math.round(num).toLocaleString();
+}
+
+
+
+
+export function signedNumber(num, decimals = -1) {
+  if (decimals >= 0)
+    return `${num > 0 ? '+' : ''}${num.toFixed(decimals)}`;
+  else
+    return `${num > 0 ? '+' : ''}${num.toLocaleString()}`;
 }
