@@ -271,13 +271,20 @@ function App() {
         // be included in the path first, then -1 to signal "show direct items of this category".
         if (navigation[navigation.length - 1].groupBy === 'item' && categoryIds.length > 0) {
           const itemNodeKey = navigation[navigation.length - 1].key;
-          if (itemNodeKey !== null && itemNodeKey !== -1 && itemNodeKey !== '-1') {
+          // Only add the key if it's not already in the array (avoid duplicates)
+          if (itemNodeKey !== null && itemNodeKey !== -1 && itemNodeKey !== '-1' &&
+              !categoryIds.includes(itemNodeKey)) {
             categoryIds.push(itemNodeKey);
           }
           categoryIds.push(-1);
         }
-        if (categoryIds.length > 0) {
-          params.filterCategoryPath = categoryIds.join(',');
+        // Deduplicate category IDs while preserving order (in case of unexpected duplicates)
+        const uniqueCategoryIds = [...new Set(categoryIds.filter(id => id !== -1))];
+        if (categoryIds[categoryIds.length - 1] === -1) {
+          uniqueCategoryIds.push(-1);
+        }
+        if (uniqueCategoryIds.length > 0) {
+          params.filterCategoryPath = uniqueCategoryIds.join(',');
         }
       }
 
