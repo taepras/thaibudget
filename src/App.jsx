@@ -88,7 +88,6 @@ const ActionButton = styled.button`
 `;
 
 const DEFAULT_HIERARCHY = [
-  'ministry',
   'budgetary_unit',
   'budget_plan',
   'output',
@@ -106,8 +105,10 @@ const getNextGroupBy = (navigation, navigatingTo) => {
   if (currentGroupBy === 'category') {
     if (!navigatingTo?.metadata?.isTerminal)
       return 'category';
-  } else if (currentGroupBy === 'ministry') {
-    return 'budgetary_unit';
+  } else if (currentGroupBy === 'budgetary_unit') {
+    // If drilling into a ministry (level 1), stay at budgetary_unit to show sub-units
+    if (!navigatingTo?.metadata?.isTerminal)
+      return 'budgetary_unit';
   } else if (currentGroupBy === 'budget_plan') {
     return 'output'
   }
@@ -129,7 +130,7 @@ function App() {
     setCompareYear(Math.max(2565, year - 1));
   }, []);
 
-  const [navigation, setNavigation] = useState([{ key: null, displayName: 'รวมทุกหน่วยงาน', groupBy: 'ministry' }]);
+  const [navigation, setNavigation] = useState([{ key: null, displayName: 'รวมทุกหน่วยงาน', groupBy: 'budgetary_unit' }]);
   const [filters, setFilters] = useState({});
 
   const navigateTo = useCallback((key, displayName = null, metadata = {}) => {
@@ -230,7 +231,9 @@ function App() {
 
       // Build filter parameters from navigation trail
       const categoryKeyStartIndex = navigation.findIndex(node => node.groupBy === 'category');
+      const budgetaryUnitKeyStartIndex = navigation.findIndex(node => node.groupBy === 'budgetary_unit');
       let hasCategoryInPath = false;
+      let hasBudgetaryUnitInPath = false;
 
       for (let i = 0; i < navigation.length - 1; i++) {
         if (navigation[i].groupBy && navigation[i + 1].key) {
@@ -243,9 +246,35 @@ function App() {
           if (navigation[i].groupBy === 'category') {
             hasCategoryInPath = true;
             // Don't set filterCategoryId here; we'll handle it with filterCategoryPath below
+          } else if (navigation[i].groupBy === 'budgetary_unit') {
+            hasBudgetaryUnitInPath = true;
+            // Don't set filterBudgetaryUnitId here; we'll handle ministry filtering below
           } else {
             params[`filter${groupByCamelCase}Id`] = navigation[i + 1].key;
           }
+        }
+      }
+
+      // If there are budgetary units in the path, build filterBudgetaryUnitPath
+      if (hasBudgetaryUnitInPath && budgetaryUnitKeyStartIndex >= 0) {
+        const budgetaryUnitIds = [];
+
+        // Collect keys where the PREVIOUS entry's groupBy was 'budgetary_unit'
+        // This captures ministry id (level 1) and budgetary unit id (level 2) drill path.
+        for (let i = budgetaryUnitKeyStartIndex; i < navigation.length; i++) {
+          if (i === budgetaryUnitKeyStartIndex) {
+            continue;
+          }
+
+          if (i > 0 && navigation[i - 1].groupBy === 'budgetary_unit' && navigation[i].key !== null) {
+            budgetaryUnitIds.push(navigation[i].key);
+          }
+        }
+
+        // Deduplicate while preserving order.
+        const uniqueBudgetaryUnitIds = [...new Set(budgetaryUnitIds)];
+        if (uniqueBudgetaryUnitIds.length > 0) {
+          params.filterBudgetaryUnitPath = uniqueBudgetaryUnitIds.join(',');
         }
       }
 

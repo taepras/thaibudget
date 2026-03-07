@@ -917,6 +917,26 @@ function TreemapComponent({
           </div>
         </FullView>
       )}
+      {!isLoading && !isNavLoading && data?.rows?.length === 0 && !isLeafLevel && (
+        <FullView
+          style={{
+            backgroundColor: '#0008',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 16,
+            flexDirection: 'column',
+          }}
+        >
+          <div style={{ fontSize: 48, opacity: 0.3 }}>📭</div>
+          <div style={{ textAlign: 'center', maxWidth: '400px', padding: '0 24px' }}>
+            <div style={{ fontSize: 18, marginBottom: 8, opacity: 0.9 }}>ไม่มีข้อมูลในหมวดนี้</div>
+            <div style={{ fontSize: 14, opacity: 0.6, lineHeight: 1.5 }}>
+              ไม่มีข้อมูลงบประมาณที่ตรงกับเงื่อนไขที่เลือก<br />
+              กรุณาเลือกหมวดอื่น หรือย้อนกลับไปยังหน้าก่อนหน้า
+            </div>
+          </div>
+        </FullView>
+      )}
 
       <div
         style={{

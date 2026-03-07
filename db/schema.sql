@@ -23,16 +23,19 @@ create table staging_budget_raw (
   debug_log text
 );
 
-create table dim_ministry (
-  id bigserial primary key,
-  name text unique
-);
-
 create table dim_budgetary_unit (
   id bigserial primary key,
-  ministry_id bigint not null references dim_ministry(id),
   name text not null,
-  unique (ministry_id, name)
+  parent_id bigint references dim_budgetary_unit(id),
+  level smallint not null,
+  unique (name, parent_id, level)
+);
+
+create table dim_budgetary_unit_path (
+  ancestor_id bigint not null references dim_budgetary_unit(id),
+  descendant_id bigint not null references dim_budgetary_unit(id),
+  depth smallint not null,
+  primary key (ancestor_id, descendant_id)
 );
 
 create table dim_budget_plan (
@@ -89,3 +92,5 @@ create index idx_fact_budgetary_unit on fact_budget_item (budgetary_unit_id);
 create index idx_fact_category on fact_budget_item (category_id);
 create index idx_catpath_ancestor on dim_category_path (ancestor_id);
 create index idx_catpath_descendant on dim_category_path (descendant_id);
+create index idx_bupath_ancestor on dim_budgetary_unit_path (ancestor_id);
+create index idx_bupath_descendant on dim_budgetary_unit_path (descendant_id);

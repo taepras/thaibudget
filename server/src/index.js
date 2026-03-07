@@ -23,15 +23,10 @@ app.get("/health", async (req, res) => {
 });
 
 const breakdownGroups = {
-  ministry: {
-    select: "m.id as id, m.name as name",
-    join: "join dim_budgetary_unit bu on f.budgetary_unit_id = bu.id join dim_ministry m on bu.ministry_id = m.id",
-    groupBy: "m.id, m.name",
-  },
   budgetary_unit: {
-    select: "bu.id as id, bu.name as name",
+    select: "bu.id as id, bu.name as name, bu.level as level, bu.parent_id as parent_id",
     join: "join dim_budgetary_unit bu on f.budgetary_unit_id = bu.id",
-    groupBy: "bu.id, bu.name",
+    groupBy: "bu.id, bu.name, bu.level, bu.parent_id",
   },
   budget_plan: {
     select: "coalesce(bp.id, -1) as id, coalesce(bp.name, 'ไม่ระบุแผนงาน') as name",
@@ -111,11 +106,12 @@ const breakdownGroups = {
 
 app.get("/api/dimensions", async (req, res) => {
   try {
-    const [ministriesResult, categoriesResult] = await Promise.all([
+    const [budgetaryUnitsResult, categoriesResult] = await Promise.all([
       query(`
-        select m.id, m.name
-        from dim_ministry m
-        order by m.name
+        select bu.id, bu.name, 1 as level
+        from dim_budgetary_unit bu
+        where bu.level = 1
+        order by bu.name
       `),
       query(`
         select c.id, c.name
@@ -132,7 +128,7 @@ app.get("/api/dimensions", async (req, res) => {
     ];
 
     return res.json({
-      ministry: ministriesResult.rows,
+      budgetary_unit: budgetaryUnitsResult.rows,
       category: categoriesResult.rows,
       obliged: obligedTypes,
     });
@@ -169,8 +165,6 @@ app.get("/api/breakdown", async (req, res) => {
   const conditions = [`f.fiscal_year in (${yearPlaceholders})`];
   const joins = new Set();
   const joinMap = {
-    ministry:
-      "join dim_budgetary_unit bu on f.budgetary_unit_id = bu.id join dim_ministry m on bu.ministry_id = m.id",
     budgetary_unit: "join dim_budgetary_unit bu on f.budgetary_unit_id = bu.id",
     budget_plan: "join dim_budget_plan bp on f.budget_plan_id = bp.id",
     output: "join dim_output o on f.output_id = o.id",
@@ -178,6 +172,8 @@ app.get("/api/breakdown", async (req, res) => {
     category: "join dim_category c on f.category_id = c.id",
     category_path:
       "join dim_category_path cp_filter on f.category_id = cp_filter.descendant_id",
+    budgetary_unit_path:
+      "join dim_budgetary_unit_path bp_filter on f.budgetary_unit_id = bp_filter.descendant_id",
   };
 
   const addJoin = (sql) => {
@@ -186,37 +182,11 @@ app.get("/api/breakdown", async (req, res) => {
     }
   };
 
-  const ensureMinistryJoin = () => {
-    if (joins.has(joinMap.ministry)) {
-      return;
-    }
-    if (joins.has(joinMap.budgetary_unit)) {
-      addJoin("join dim_ministry m on bu.ministry_id = m.id");
-      return;
-    }
-    addJoin(joinMap.ministry);
-  };
-
-  const ensureBudgetaryUnitJoin = () => {
-    if (joins.has(joinMap.budgetary_unit)) {
-      return;
-    }
-    if (joins.has(joinMap.ministry)) {
-      return;
-    }
-    addJoin(joinMap.budgetary_unit);
-  };
-
   addJoin(groupConfig.join);
 
   const filterMinistryId = parseId(req.query.filterMinistryId);
   if (req.query.filterMinistryId && filterMinistryId === null) {
     return res.status(400).json({ error: "filterMinistryId must be an integer" });
-  }
-  if (filterMinistryId !== null) {
-    ensureMinistryJoin();
-    params.push(filterMinistryId);
-    conditions.push(`m.id = $${params.length}`);
   }
 
   const filterBudgetaryUnitId = parseId(req.query.filterBudgetaryUnitId);
@@ -225,10 +195,52 @@ app.get("/api/breakdown", async (req, res) => {
       .status(400)
       .json({ error: "filterBudgetaryUnitId must be an integer" });
   }
-  if (filterBudgetaryUnitId !== null) {
-    ensureBudgetaryUnitJoin();
-    params.push(filterBudgetaryUnitId);
-    conditions.push(`bu.id = $${params.length}`);
+
+  // Parse filterBudgetaryUnitPath as comma-separated budgetary unit IDs.
+  // Example: "10,177" means level-1 ministry id 10 then level-2 budgetary unit id 177.
+  let budgetaryUnitPathArray = [];
+  if (req.query.filterBudgetaryUnitPath) {
+    budgetaryUnitPathArray = String(req.query.filterBudgetaryUnitPath)
+      .split(',')
+      .map((x) => {
+        const parsed = Number(x.trim());
+        return Number.isInteger(parsed) ? parsed : null;
+      })
+      .filter((x) => x !== null);
+
+    if (budgetaryUnitPathArray.length === 0) {
+      return res.status(400).json({ error: "filterBudgetaryUnitPath must contain integers" });
+    }
+  }
+
+  // Prefer path-based filtering. Fallback to legacy single-id filters for compatibility.
+  if (budgetaryUnitPathArray.length > 0) {
+    for (let i = 0; i < budgetaryUnitPathArray.length; i++) {
+      const ancestorId = budgetaryUnitPathArray[i];
+      const aliasName = `bp_filter_${i}`;
+      joins.add(`join dim_budgetary_unit_path ${aliasName} on f.budgetary_unit_id = ${aliasName}.descendant_id`);
+      params.push(ancestorId);
+      conditions.push(`${aliasName}.ancestor_id = $${params.length}`);
+    }
+  } else {
+    if (filterMinistryId !== null) {
+      joins.add(joinMap.budgetary_unit);
+      joins.add(joinMap.budgetary_unit_path);
+      params.push(filterMinistryId);
+      conditions.push(`bp_filter.ancestor_id = $${params.length}`);
+      budgetaryUnitPathArray = [filterMinistryId];
+    }
+
+    if (filterBudgetaryUnitId !== null) {
+      joins.add(joinMap.budgetary_unit);
+      params.push(filterBudgetaryUnitId);
+      conditions.push(`bu.id = $${params.length}`);
+      if (budgetaryUnitPathArray.length === 0) {
+        budgetaryUnitPathArray = [filterBudgetaryUnitId];
+      } else if (budgetaryUnitPathArray[budgetaryUnitPathArray.length - 1] !== filterBudgetaryUnitId) {
+        budgetaryUnitPathArray.push(filterBudgetaryUnitId);
+      }
+    }
   }
 
   const filterBudgetPlanId = parseId(req.query.filterBudgetPlanId);
@@ -366,7 +378,7 @@ app.get("/api/breakdown", async (req, res) => {
   }
 
   // Resolve groupConfig after potential group switch (isTerminalCategory may change group to 'item')
-  const resolvedGroupConfig = breakdownGroups[group];
+  let resolvedGroupConfig = breakdownGroups[group];
 
   // Snapshot filter state (params/conditions/joins) before category-level conditions are added.
   // Used by the collapseCategories feature to run filter-aware child-count checks.
@@ -374,6 +386,44 @@ app.get("/api/breakdown", async (req, res) => {
   const filterParamsSnapshot = [...params];
   const filterConditionsSnapshot = conditions.map(c => c.replace(/\bf\./g, 'f_col.'));
   const filterJoinsSnapshot = [...joins].map(j => j.replace(/\bf\./g, 'f_col.'));
+
+  // For budgetary_unit grouping, show ministries (level 1) or budgetary units (level 2)
+  if (group === 'budgetary_unit') {
+    let targetLevel = 1; // Default: show ministries (level 1)
+    let targetParentBudgetaryUnitId = null;
+
+    // If path has a leaf at level 1, show its children (level 2).
+    if (budgetaryUnitPathArray.length > 0) {
+      const leafBudgetaryUnitId = budgetaryUnitPathArray[budgetaryUnitPathArray.length - 1];
+      const leafLevelResult = await query(
+        'select id, level from dim_budgetary_unit where id = $1',
+        [leafBudgetaryUnitId]
+      );
+      if (leafLevelResult.rows.length > 0 && Number(leafLevelResult.rows[0].level) === 1) {
+        targetLevel = 2;
+        targetParentBudgetaryUnitId = leafBudgetaryUnitId;
+      }
+    }
+
+    if (targetLevel === 1) {
+      // Show ministries (level 1) by grouping fact-linked level-2 units to their level-1 ancestors.
+      joins.add('join dim_budgetary_unit_path bu_group_path on f.budgetary_unit_id = bu_group_path.descendant_id');
+      joins.add('join dim_budgetary_unit bu_group on bu_group_path.ancestor_id = bu_group.id');
+      resolvedGroupConfig = {
+        select: 'bu_group.id as id, bu_group.name as name, bu_group.level as level, bu_group.parent_id as parent_id',
+        groupBy: 'bu_group.id, bu_group.name, bu_group.level, bu_group.parent_id',
+      };
+      conditions.push('bu_group.level = 1');
+    } else {
+      // targetLevel === 2: show budgetary units under the filtered ministry
+      // Filter by parent_id (the ministry at level 1)
+      if (targetParentBudgetaryUnitId !== null) {
+        params.push(targetParentBudgetaryUnitId);
+        conditions.push(`bu.parent_id = $${params.length}`);
+        conditions.push('bu.level = 2');
+      }
+    }
+  }
 
   // For category grouping, default to level 1 (top-level categories) unless specified
   if (group === 'category') {
@@ -546,6 +596,53 @@ app.get("/api/breakdown", async (req, res) => {
         const levelResult = await query('select level from dim_category where id = $1', [newId]);
         if (levelResult.rows.length > 0) row.level = levelResult.rows[0].level;
         rowMap.set(newName, row);
+      }
+    }
+
+    // For budgetary_unit grouping, check if ministries have child budgetary units
+    if (group === 'budgetary_unit') {
+      const budgetaryUnitIds = [...rowMap.values()]
+        .filter(row => row.id !== -1 && row.id !== null && row.level === 1)
+        .map(row => row.id);
+
+      if (budgetaryUnitIds.length > 0) {
+        // Check if each ministry (level 1) has child budgetary units (level 2)
+        const childCheckSql = `
+          select 
+            bu_parent.id as parent_id,
+            exists (
+              select 1
+              from dim_budgetary_unit bu_check
+              where bu_check.parent_id = bu_parent.id and bu_check.level = 2
+              limit 1
+            ) as has_children
+          from dim_budgetary_unit bu_parent
+          where bu_parent.id = any($1) and bu_parent.level = 1
+        `;
+
+        const childCheckResult = await query(childCheckSql, [budgetaryUnitIds]);
+
+        const hasChildrenMap = new Map();
+        for (const row of childCheckResult.rows) {
+          hasChildrenMap.set(row.parent_id, row.has_children);
+        }
+
+        // Add isTerminal flag to each ministry row
+        for (const row of rowMap.values()) {
+          if (row.level === 1 && row.id !== -1 && row.id !== null) {
+            row.isTerminal = !hasChildrenMap.get(row.id);
+          } else if (row.level === 2) {
+            // Budgetary units (level 2) are always terminal
+            row.isTerminal = true;
+          }
+        }
+      } else {
+        // If only level 2 rows (budgetary units), mark them all as terminal
+        for (const row of rowMap.values()) {
+          if (row.level === 2) {
+            row.isTerminal = true;
+          }
+        }
       }
     }
 

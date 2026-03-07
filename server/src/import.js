@@ -89,28 +89,82 @@ async function getOrCreateByName(client, tableName, name, cache) {
   return id;
 }
 
-async function getOrCreateMinistry(client, name, cache) {
-  return getOrCreateByName(client, "dim_ministry", name, cache);
-}
-
-async function getOrCreateBudgetaryUnit(client, ministryId, name, cache) {
-  if (!name) {
+async function getOrCreateBudgetaryUnit(client, ministryName, unitName, cache, pathCache) {
+  // If only ministry name provided, create/get level 1 (ministry)
+  // If both provided, create/get level 2 (budgetary unit) with ministry as parent
+  
+  if (!ministryName) {
     return null;
   }
-  const key = `${ministryId || 0}::${name}`;
-  const cached = cache.get(key);
-  if (cached) {
-    return cached;
+
+  // Level 1: Ministry
+  const ministryKey = `1::${ministryName}`;
+  let ministryId = cache.get(ministryKey);
+  
+  if (!ministryId) {
+    const result = await client.query(
+      `insert into dim_budgetary_unit (name, parent_id, level)
+       values ($1, null, 1)
+       on conflict (name, parent_id, level) do update set name = excluded.name
+       returning id`,
+      [ministryName]
+    );
+    ministryId = result.rows[0].id;
+    cache.set(ministryKey, ministryId);
+    
+    // Add self-reference in path table
+    const pathKey = `${ministryId}::${ministryId}`;
+    if (!pathCache.has(pathKey)) {
+      await client.query(
+        'insert into dim_budgetary_unit_path (ancestor_id, descendant_id, depth) values ($1, $2, 0) on conflict do nothing',
+        [ministryId, ministryId]
+      );
+      pathCache.add(pathKey);
+    }
   }
-  const result = await client.query(
-    "insert into dim_budgetary_unit (ministry_id, name) values ($1, $2)\n" +
-      "on conflict (ministry_id, name) do update set name = excluded.name\n" +
-      "returning id",
-    [ministryId, name]
-  );
-  const id = result.rows[0].id;
-  cache.set(key, id);
-  return id;
+
+  // If no unit name, return ministry ID
+  if (!unitName) {
+    return ministryId;
+  }
+
+  // Level 2: Budgetary Unit
+  const unitKey = `${ministryId}::2::${unitName}`;
+  let unitId = cache.get(unitKey);
+  
+  if (!unitId) {
+    const result = await client.query(
+      `insert into dim_budgetary_unit (name, parent_id, level)
+       values ($1, $2, 2)
+       on conflict (name, parent_id, level) do update set name = excluded.name
+       returning id`,
+      [unitName, ministryId]
+    );
+    unitId = result.rows[0].id;
+    cache.set(unitKey, unitId);
+    
+    // Add self-reference
+    const selfPathKey = `${unitId}::${unitId}`;
+    if (!pathCache.has(selfPathKey)) {
+      await client.query(
+        'insert into dim_budgetary_unit_path (ancestor_id, descendant_id, depth) values ($1, $2, 0) on conflict do nothing',
+        [unitId, unitId]
+      );
+      pathCache.add(selfPathKey);
+    }
+    
+    // Add parent-child relationship
+    const parentPathKey = `${ministryId}::${unitId}`;
+    if (!pathCache.has(parentPathKey)) {
+      await client.query(
+        'insert into dim_budgetary_unit_path (ancestor_id, descendant_id, depth) values ($1, $2, 1) on conflict do nothing',
+        [ministryId, unitId]
+      );
+      pathCache.add(parentPathKey);
+    }
+  }
+
+  return unitId;
 }
 
 async function getOrCreateCategory(client, categoryNames, cache, pathCache) {
@@ -169,21 +223,93 @@ async function getOrCreateCategory(client, categoryNames, cache, pathCache) {
   return descendantId;
 }
 
-async function preloadDimensions(client, allRecords, { ministryCache, budgetaryUnitCache, budgetPlanCache, outputCache, projectCache }) {
-  // 1. Ministries
-  const ministryNames = [...new Set(
-    allRecords.map(r => {
-      const raw = normalizeText(r.MINISTRY);
-      return raw ? raw.replace(/\([0-9]+\)$/, '').trim() : null;
-    }).filter(Boolean)
-  )];
-  if (ministryNames.length) {
+async function preloadDimensions(client, allRecords, { budgetaryUnitCache, budgetaryUnitPathCache, budgetPlanCache, outputCache, projectCache }) {
+  // 1. Budgetary units (hierarchical: ministries at level 1, units at level 2)
+  // First collect all unique ministries and budgetary units
+  const ministryNames = new Set();
+  const buPairs = new Map();
+  
+  for (const r of allRecords) {
+    const ministryRaw = normalizeText(r.MINISTRY);
+    const ministryName = ministryRaw ? ministryRaw.replace(/\([0-9]+\)$/, '').trim() : null;
+    const unitName = normalizeText(r.BUDGETARY_UNIT);
+    
+    if (ministryName) {
+      ministryNames.add(ministryName);
+      if (unitName) {
+        buPairs.set(`${ministryName}::${unitName}`, { ministryName, unitName });
+      }
+    }
+  }
+
+  // Insert ministries (level 1) in bulk
+  if (ministryNames.size > 0) {
     const res = await client.query(
-      `insert into dim_ministry (name) select unnest($1::text[])
-       on conflict (name) do update set name = excluded.name returning id, name`,
-      [ministryNames]
+      `insert into dim_budgetary_unit (name, parent_id, level)
+       select unnest($1::text[]), null, 1
+       on conflict (name, parent_id, level) do update set name = excluded.name
+       returning id, name`,
+      [[...ministryNames]]
     );
-    res.rows.forEach(r => ministryCache.set(r.name, r.id));
+    res.rows.forEach(r => {
+      budgetaryUnitCache.set(`1::${r.name}`, r.id);
+      // Add self-reference paths
+      budgetaryUnitPathCache.add(`${r.id}::${r.id}`);
+    });
+    
+    // Bulk insert self-reference paths for ministries
+    const ministryIds = res.rows.map(r => r.id);
+    if (ministryIds.length > 0) {
+      await client.query(
+        `insert into dim_budgetary_unit_path (ancestor_id, descendant_id, depth)
+         select id, id, 0 from unnest($1::bigint[]) as id
+         on conflict do nothing`,
+        [ministryIds]
+      );
+    }
+  }
+
+  // Insert budgetary units (level 2) in bulk
+  if (buPairs.size > 0) {
+    const pairs = [...buPairs.values()];
+    const res = await client.query(
+      `insert into dim_budgetary_unit (name, parent_id, level)
+       select u.unit_name, bu_parent.id, 2
+       from unnest($1::text[], $2::text[]) as u(ministry_name, unit_name)
+       join dim_budgetary_unit bu_parent on bu_parent.name = u.ministry_name and bu_parent.level = 1
+       on conflict (name, parent_id, level) do update set name = excluded.name
+       returning id, name, parent_id`,
+      [pairs.map(p => p.ministryName), pairs.map(p => p.unitName)]
+    );
+    
+    // Cache and build path table
+    const pathInserts = [];
+    res.rows.forEach(r => {
+      budgetaryUnitCache.set(`${r.parent_id}::2::${r.name}`, r.id);
+      // Self-reference
+      if (!budgetaryUnitPathCache.has(`${r.id}::${r.id}`)) {
+        pathInserts.push([r.id, r.id, 0]);
+        budgetaryUnitPathCache.add(`${r.id}::${r.id}`);
+      }
+      // Parent-child relationship
+      if (!budgetaryUnitPathCache.has(`${r.parent_id}::${r.id}`)) {
+        pathInserts.push([r.parent_id, r.id, 1]);
+        budgetaryUnitPathCache.add(`${r.parent_id}::${r.id}`);
+      }
+    });
+    
+    if (pathInserts.length > 0) {
+      await client.query(
+        `insert into dim_budgetary_unit_path (ancestor_id, descendant_id, depth)
+         select * from unnest($1::bigint[], $2::bigint[], $3::smallint[])
+         on conflict do nothing`,
+        [
+          pathInserts.map(p => p[0]),
+          pathInserts.map(p => p[1]),
+          pathInserts.map(p => p[2])
+        ]
+      );
+    }
   }
 
   // 2. Budget plans, outputs, projects (simple name tables)
@@ -203,27 +329,6 @@ async function preloadDimensions(client, allRecords, { ministryCache, budgetaryU
     }
   }
 
-  // 3. Budgetary units (depends on ministry IDs being loaded first)
-  const buMap = new Map();
-  for (const r of allRecords) {
-    const ministryRaw = normalizeText(r.MINISTRY);
-    const ministryName = ministryRaw ? ministryRaw.replace(/\([0-9]+\)$/, '').trim() : null;
-    const unitName = normalizeText(r.BUDGETARY_UNIT);
-    if (ministryName && unitName) buMap.set(`${ministryName}::${unitName}`, { ministryName, unitName });
-  }
-  const buPairs = [...buMap.values()];
-  if (buPairs.length) {
-    const res = await client.query(
-      `insert into dim_budgetary_unit (ministry_id, name)
-       select m.id, u.unit_name
-       from unnest($1::text[], $2::text[]) as u(ministry_name, unit_name)
-       join dim_ministry m on m.name = u.ministry_name
-       on conflict (ministry_id, name) do update set name = excluded.name
-       returning id, name, ministry_id`,
-      [buPairs.map(p => p.ministryName), buPairs.map(p => p.unitName)]
-    );
-    res.rows.forEach(r => budgetaryUnitCache.set(`${r.ministry_id}::${r.name}`, r.id));
-  }
   console.log('Phase 2 complete');
 }
 
@@ -234,8 +339,8 @@ async function runImport() {
   const client = await pool.connect();
   console.log("Database connected");
 
-  const ministryCache = new Map();
   const budgetaryUnitCache = new Map();
+  const budgetaryUnitPathCache = new Set();
   const budgetPlanCache = new Map();
   const outputCache = new Map();
   const projectCache = new Map();
@@ -259,7 +364,7 @@ async function runImport() {
     if (reset) {
       console.log("Truncating tables...");
       await client.query(
-        "truncate table fact_budget_item, dim_category_path, dim_category, dim_project, dim_output, dim_budget_plan, dim_budgetary_unit, dim_ministry restart identity cascade"
+        "truncate table fact_budget_item, dim_category_path, dim_category, dim_project, dim_output, dim_budget_plan, dim_budgetary_unit_path, dim_budgetary_unit restart identity cascade"
       );
       console.log("Tables truncated");
       // Drop secondary indexes before bulk insert; recreate after commit
@@ -268,6 +373,8 @@ async function runImport() {
       await client.query("drop index if exists idx_fact_category");
       await client.query("drop index if exists idx_catpath_ancestor");
       await client.query("drop index if exists idx_catpath_descendant");
+      await client.query("drop index if exists idx_bupath_ancestor");
+      await client.query("drop index if exists idx_bupath_descendant");
       console.log("Indexes dropped for fast bulk insert");
     }
 
@@ -312,7 +419,7 @@ async function runImport() {
     // ── Phase 2: bulk-upsert all dimension tables ──────────────────────────
     console.log("Phase 2: pre-loading dimensions...");
     await preloadDimensions(client, allRecords, {
-      ministryCache, budgetaryUnitCache, budgetPlanCache, outputCache, projectCache,
+      budgetaryUnitCache, budgetaryUnitPathCache, budgetPlanCache, outputCache, projectCache,
     });
 
     // ── Phase 3: insert fact rows using pre-loaded caches ─────────────────
@@ -354,17 +461,14 @@ async function runImport() {
       const ministryName = ministryNameRaw
         ? ministryNameRaw.replace(/\([0-9]+\)$/, '').trim()
         : null;
-      const ministryId = await getOrCreateMinistry(
-        client,
-        ministryName,
-        ministryCache
-      );
+      const unitName = normalizeText(record.BUDGETARY_UNIT);
 
       const budgetaryUnitId = await getOrCreateBudgetaryUnit(
         client,
-        ministryId,
-        normalizeText(record.BUDGETARY_UNIT),
-        budgetaryUnitCache
+        ministryName,
+        unitName,
+        budgetaryUnitCache,
+        budgetaryUnitPathCache
       );
 
       const budgetPlanId = await getOrCreateByName(
@@ -466,6 +570,8 @@ async function runImport() {
       await client.query("create index idx_fact_category on fact_budget_item (category_id)");
       await client.query("create index idx_catpath_ancestor on dim_category_path (ancestor_id)");
       await client.query("create index idx_catpath_descendant on dim_category_path (descendant_id)");
+      await client.query("create index idx_bupath_ancestor on dim_budgetary_unit_path (ancestor_id)");
+      await client.query("create index idx_bupath_descendant on dim_budgetary_unit_path (descendant_id)");
       console.log("Indexes recreated");
     }
   } catch (error) {
