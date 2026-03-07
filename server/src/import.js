@@ -92,7 +92,7 @@ async function getOrCreateByName(client, tableName, name, cache) {
 async function getOrCreateBudgetaryUnit(client, ministryName, unitName, cache, pathCache) {
   // If only ministry name provided, create/get level 1 (ministry)
   // If both provided, create/get level 2 (budgetary unit) with ministry as parent
-  
+
   if (!ministryName) {
     return null;
   }
@@ -100,7 +100,7 @@ async function getOrCreateBudgetaryUnit(client, ministryName, unitName, cache, p
   // Level 1: Ministry
   const ministryKey = `1::${ministryName}`;
   let ministryId = cache.get(ministryKey);
-  
+
   if (!ministryId) {
     const result = await client.query(
       `insert into dim_budgetary_unit (name, parent_id, level)
@@ -111,7 +111,7 @@ async function getOrCreateBudgetaryUnit(client, ministryName, unitName, cache, p
     );
     ministryId = result.rows[0].id;
     cache.set(ministryKey, ministryId);
-    
+
     // Add self-reference in path table
     const pathKey = `${ministryId}::${ministryId}`;
     if (!pathCache.has(pathKey)) {
@@ -131,7 +131,7 @@ async function getOrCreateBudgetaryUnit(client, ministryName, unitName, cache, p
   // Level 2: Budgetary Unit
   const unitKey = `${ministryId}::2::${unitName}`;
   let unitId = cache.get(unitKey);
-  
+
   if (!unitId) {
     const result = await client.query(
       `insert into dim_budgetary_unit (name, parent_id, level)
@@ -142,7 +142,7 @@ async function getOrCreateBudgetaryUnit(client, ministryName, unitName, cache, p
     );
     unitId = result.rows[0].id;
     cache.set(unitKey, unitId);
-    
+
     // Add self-reference
     const selfPathKey = `${unitId}::${unitId}`;
     if (!pathCache.has(selfPathKey)) {
@@ -152,7 +152,7 @@ async function getOrCreateBudgetaryUnit(client, ministryName, unitName, cache, p
       );
       pathCache.add(selfPathKey);
     }
-    
+
     // Add parent-child relationship
     const parentPathKey = `${ministryId}::${unitId}`;
     if (!pathCache.has(parentPathKey)) {
@@ -228,12 +228,12 @@ async function preloadDimensions(client, allRecords, { budgetaryUnitCache, budge
   // First collect all unique ministries and budgetary units
   const ministryNames = new Set();
   const buPairs = new Map();
-  
+
   for (const r of allRecords) {
     const ministryRaw = normalizeText(r.MINISTRY);
     const ministryName = ministryRaw ? ministryRaw.replace(/\([0-9]+\)$/, '').trim() : null;
     const unitName = normalizeText(r.BUDGETARY_UNIT);
-    
+
     if (ministryName) {
       ministryNames.add(ministryName);
       if (unitName) {
@@ -256,7 +256,7 @@ async function preloadDimensions(client, allRecords, { budgetaryUnitCache, budge
       // Add self-reference paths
       budgetaryUnitPathCache.add(`${r.id}::${r.id}`);
     });
-    
+
     // Bulk insert self-reference paths for ministries
     const ministryIds = res.rows.map(r => r.id);
     if (ministryIds.length > 0) {
@@ -281,7 +281,7 @@ async function preloadDimensions(client, allRecords, { budgetaryUnitCache, budge
        returning id, name, parent_id`,
       [pairs.map(p => p.ministryName), pairs.map(p => p.unitName)]
     );
-    
+
     // Cache and build path table
     const pathInserts = [];
     res.rows.forEach(r => {
@@ -297,7 +297,7 @@ async function preloadDimensions(client, allRecords, { budgetaryUnitCache, budge
         budgetaryUnitPathCache.add(`${r.parent_id}::${r.id}`);
       }
     });
-    
+
     if (pathInserts.length > 0) {
       await client.query(
         `insert into dim_budgetary_unit_path (ancestor_id, descendant_id, depth)
