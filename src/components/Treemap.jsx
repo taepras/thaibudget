@@ -9,6 +9,7 @@ import { useHistory, useLocation } from 'react-router-dom';
 import { abbreviateNumber, signedNumber } from '../utils/numberFormat';
 import FullView from './FullView';
 import Ui from './BasicUi';
+import ItemDetailsModal from './ItemDetailsModal';
 
 const BATCH_SIZE = 500;
 
@@ -42,6 +43,8 @@ function TailOverlay({
   onLoadMore,      // () => void
   onClose,         // () => void
   navigateTo,      // (id, name) => void
+  onItemClick,     // (item) => void - called when leaf level item is clicked
+  dataRows = [],   // original data rows for looking up full item data
   isLeafLevel = false,
   colorScaleMaxValue = 0.3,
   padding = 12,
@@ -143,6 +146,16 @@ function TailOverlay({
           onLoadMore();
           return;
         }
+        if (isLeafLevel) {
+          // Show modal for item details at leaf level
+          const itemKey = d?.data?.key;
+          const itemId = d?.data?.value?.id;
+          const itemData = dataRows.find((row) => row.name === itemKey && row.id === itemId);
+          if (itemData && onItemClick) {
+            onItemClick(itemData);
+          }
+          return;
+        }
         if (!isLeafLevel && d?.data?.value?.id != null) {
           navigateTo(d.data.value.id, d.data.key, { isTerminal: d.data.value.isTerminal });
           onClose();
@@ -182,7 +195,7 @@ function TailOverlay({
     }); // end rAF
     // eslint-disable-next-line consistent-return
     return () => cancelAnimationFrame(raf);
-  }, [visibleItems, width, height, padding, gutter, getColor, navigateTo, isLeafLevel, onLoadMore, onClose]);
+  }, [visibleItems, width, height, padding, gutter, getColor, navigateTo, isLeafLevel, onLoadMore, onClose, onItemClick, dataRows]);
 
   return (
     // full-area backdrop — click on backdrop closes overlay
@@ -372,6 +385,10 @@ function TreemapComponent({
     nestedDataRef.current = nestedData;
   }, [nestedData]);
 
+  useEffect(() => {
+    dataRowsRef.current = data.rows || [];
+  }, [data.rows]);
+
   const growth = useMemo(() => {
     const current = data.totals?.[primaryYear];
     const lastYear = data.totals?.[compareYear];
@@ -380,11 +397,13 @@ function TreemapComponent({
 
   const [overlayCount, setOverlayCount] = useState(BATCH_SIZE);
   const [overlayOpen, setOverlayOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
   const [isNavLoading, setIsNavLoading] = useState(false);
   const navLoadTimerRef = useRef(null);
   const zoomStateRef = useRef({ dx: 0, dy: 0, sx: 1, sy: 1 });
   const zoomTileRef = useRef(null);
   const isNavigationRenderRef = useRef(false);
+  const dataRowsRef = useRef([]);
 
   useEffect(() => {
     // on new data change
@@ -614,7 +633,16 @@ function TreemapComponent({
       })
       .on('click', null)
       .on('click', (e, d) => {
-        if (isLeafLevelRef.current) return;
+        if (isLeafLevelRef.current) {
+          // Show modal for item details at leaf level
+          const itemKey = d?.data?.key;
+          const itemId = d?.data?.value?.id;
+          const itemData = dataRowsRef.current.find((row) => row.name === itemKey && row.id === itemId);
+          if (itemData) {
+            setSelectedItem(itemData);
+          }
+          return;
+        }
         // Current tile dimensions (before zoom)
         const oldTileWidth = d.x1 - d.x0 - gutter;
         const oldTileHeight = d.y1 - d.y0 - gutter;
@@ -787,6 +815,8 @@ function TreemapComponent({
     getNodeColor,
     hoveredItemName,
     isLeafLevel,
+    compareYear,
+    primaryYear,
   ]);
 
   return (
@@ -906,6 +936,8 @@ function TreemapComponent({
             onLoadMore={() => setOverlayCount((c) => c + BATCH_SIZE)}
             onClose={() => setOverlayOpen(false)}
             navigateTo={navigateToRef.current}
+            onItemClick={setSelectedItem}
+            dataRows={dataRowsRef.current}
             isLeafLevel={isLeafLevel}
             colorScaleMaxValue={colorScaleMaxValue}
             padding={padding}
@@ -923,6 +955,15 @@ function TreemapComponent({
           pointerEvents: 'none',
         }}
       />
+      {selectedItem && (
+        <ItemDetailsModal
+          item={selectedItem}
+          years={data.years || []}
+          primaryYear={primaryYear}
+          compareYear={compareYear}
+          onClose={() => setSelectedItem(null)}
+        />
+      )}
     </div>
   );
 }

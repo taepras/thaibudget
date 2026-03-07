@@ -9,7 +9,7 @@
  * @returns {string} Abbreviated number with Thai suffix
  */
 export function abbreviateNumber(num, signed=false) {
-  if (!num || num === 0) return '0 บาท';
+  if (!num || num === 0) return '0';
 
   const sign = num < 0 ? '-' : signed ? '+' : '';
   const absNum = Math.abs(num);
