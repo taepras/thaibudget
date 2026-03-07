@@ -198,6 +198,8 @@ function ItemDetailsModal({
       growth,
       diff,
       allAmounts: item.amounts || {},
+      obligedByYear: item.obligedByYear || {},
+      obligedData: item.obligedData || {},
     };
   }, [item, primaryYear, compareYear]);
 
@@ -310,6 +312,51 @@ function ItemDetailsModal({
                   })}
                 </tbody>
               </YearTable>
+            </Section>
+          )}
+
+          {/* Obliged Data */}
+          {sortedYears.some(year => detail.obligedByYear[year]) && (
+            <Section>
+              <SectionTitle>ข้อมูลงบประมาณผูกพัน</SectionTitle>
+              {sortedYears.map((year) => {
+                const isObliged = detail.obligedByYear[year];
+                const obligedData = detail.obligedData[year];
+
+                if (!isObliged || !obligedData || !Array.isArray(obligedData) || obligedData.length === 0) {
+                  return null;
+                }
+
+                return (
+                  <div key={year} style={{ marginBottom: '20px' }}>
+                    <DetailLabel style={{
+                      display: 'block',
+                      marginBottom: '8px',
+                      fontSize: '0.95rem',
+                      color: '#ccc',
+                      fontWeight: 600
+                    }}>
+                      ปีงบประมาณ {year}
+                    </DetailLabel>
+                    <YearTable>
+                      <thead>
+                        <tr>
+                          <th>ปีผูกพัน</th>
+                          <th>จำนวนเงิน</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {obligedData.map((entry, idx) => (
+                          <tr key={idx}>
+                            <td>{entry.fiscalYear}</td>
+                            <td>{abbreviateNumber(entry.amount)} บาท</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </YearTable>
+                  </div>
+                );
+              }).filter(Boolean)}
             </Section>
           )}
         </ModalContent>

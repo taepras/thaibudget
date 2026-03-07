@@ -80,9 +80,7 @@ create table fact_budget_item (
   fiscal_year integer not null,
   amount numeric(18,2) not null,
   obliged boolean,
-  obliged_year_start integer,
-  obliged_year_end integer,
-  obliged_total_amount numeric(18,2),
+  obliged_data_by_source jsonb,
   debug_log text
 );
 

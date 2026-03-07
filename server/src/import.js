@@ -250,12 +250,10 @@ async function runImport() {
     // Drop legacy unique constraint on item_id if it still exists from old schema
     await client.query("alter table fact_budget_item drop constraint if exists fact_budget_item_item_id_key");
 
-    // Add obliged span columns if not already present (idempotent migration)
+    // Add obliged data column if not already present (idempotent migration)
     await client.query(`
       alter table fact_budget_item
-        add column if not exists obliged_year_start integer,
-        add column if not exists obliged_year_end integer,
-        add column if not exists obliged_total_amount numeric(18,2)
+        add column if not exists obliged_data_by_source jsonb
     `);
 
     if (reset) {
@@ -329,20 +327,18 @@ async function runImport() {
       }
       const params = [];
       const values = factRows.map((row, rowIndex) => {
-        const offset = rowIndex * 17;
+        const offset = rowIndex * 15;
         params.push(...row);
         return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, ` +
           `$${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, ` +
-          `$${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14}, ` +
-          `$${offset + 15}, $${offset + 16}, $${offset + 17})`;
+          `$${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14}, $${offset + 15})`;
       });
 
       await client.query(
         "insert into fact_budget_item (\n" +
           "item_id, ref_doc, ref_page_no, budgetary_unit_id, cross_func,\n" +
           "budget_plan_id, output_id, project_id, category_id, item_description,\n" +
-          "fiscal_year, amount, obliged, debug_log,\n" +
-          "obliged_year_start, obliged_year_end, obliged_total_amount\n" +
+          "fiscal_year, amount, obliged, debug_log, obliged_data_by_source\n" +
           ") values " +
           values.join(", "),
         params
@@ -406,46 +402,51 @@ async function runImport() {
         categoryPathCache
       );
 
-      // Process each year's amount
-      const yearAmounts = [
-        { year: 2565, amount: parseAmount(record.AMOUNT_2565) },
-        { year: 2566, amount: parseAmount(record.AMOUNT_2566) },
-        { year: 2567, amount: parseAmount(record.AMOUNT_2567) },
-        { year: 2568, amount: parseAmount(record.AMOUNT_2568) },
-        { year: 2569, amount: parseAmount(record.AMOUNT_2569) },
-      ];
+      // Parse amount and fiscal year from this row (already decompressed format)
+      const amount = parseAmount(record.AMOUNT);
+      const fiscalYear = parseInteger(record.FISCAL_YEAR);
+
+      // Skip rows with no amount or invalid year
+      if (amount === null || amount === 0 || fiscalYear === null) {
+        continue;
+      }
 
       const rowKey = normalizeText(record.ITEM_ID) || `ROW_${rowCount}`;
 
-      for (const { year, amount } of yearAmounts) {
-        if (amount === null || amount === 0) {
-          continue;
+      // Parse obliged data JSON
+      let obligedDataJson = null;
+      if (record.OBLIGED_DATA_JSON) {
+        try {
+          obligedDataJson = JSON.parse(record.OBLIGED_DATA_JSON);
+        } catch (e) {
+          console.warn(`Failed to parse OBLIGED_DATA_JSON for row ${rowCount}:`, e.message);
+          obligedDataJson = null;
         }
-        factRows.push([
-          `${rowKey}_${year}`,
-          normalizeText(record.REF_DOC),
-          parseInteger(record.REF_PAGE_NO),
-          budgetaryUnitId,
-          parseBool(record["CROSS_FUNC?"]),
-          budgetPlanId,
-          outputId,
-          projectId,
-          categoryId,
-          normalizeText(record.ITEM_DESCRIPTION),
-          year,
-          amount,
-          parseBool(record["OBLIGED?"]),
-          normalizeText(record.DEBUG_LOG),
-          parseInteger(record.OBLIGED_YEAR_START),
-          parseInteger(record.OBLIGED_YEAR_END),
-          parseAmount(record.OBLIGED_TOTAL_AMOUNT),
-        ]);
+      }
 
-        insertedCount += 1;
+      // Insert one fact row per CSV row (no looping through years)
+      factRows.push([
+        `${rowKey}_${fiscalYear}`,
+        normalizeText(record.REF_DOC),
+        parseInteger(record.REF_PAGE_NO),
+        budgetaryUnitId,
+        parseBool(record["CROSS_FUNC?"]),
+        budgetPlanId,
+        outputId,
+        projectId,
+        categoryId,
+        normalizeText(record.ITEM_DESCRIPTION),
+        fiscalYear,
+        amount,
+        parseBool(record["OBLIGED?"]),
+        normalizeText(record.DEBUG_LOG),
+        obligedDataJson !== null ? JSON.stringify(obligedDataJson) : null,
+      ]);
 
-        if (factRows.length >= FACT_BATCH_SIZE) {
-          await flushFactRows();
-        }
+      insertedCount += 1;
+
+      if (factRows.length >= FACT_BATCH_SIZE) {
+        await flushFactRows();
       }
 
       if (rowCount % 5000 === 0) {

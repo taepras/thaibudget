@@ -249,7 +249,7 @@ function applyReplacements() {
     Object.keys(dataMapsByYear).forEach((year) => {
         const oldMap = dataMapsByYear[year];
         const newMap = new Map();
-        oldMap.forEach(({ row, amount }) => {
+        oldMap.forEach(({ row, amount, obligedDataList, isObliged }) => {
             TEXT_COLUMNS.forEach((col) => {
                 if (!row[col]) return;
                 REPLACEMENTS.forEach(([find, replace]) => {
@@ -258,9 +258,15 @@ function applyReplacements() {
             });
             const newKey = createKey(row);
             if (newMap.has(newKey)) {
-                newMap.get(newKey).amount += amount;
+                const existing = newMap.get(newKey);
+                existing.amount += amount;
+                existing.isObliged = existing.isObliged || isObliged;
+                // Merge obliged data lists
+                if (obligedDataList) {
+                    existing.obligedDataList.push(...obligedDataList);
+                }
             } else {
-                newMap.set(newKey, { row, amount });
+                newMap.set(newKey, { row, amount, obligedDataList: obligedDataList || [], isObliged });
             }
         });
         dataMapsByYear[year] = newMap;
@@ -272,15 +278,21 @@ function rebuildDataMapsWithAliases(aliasMap) {
     Object.keys(dataMapsByYear).forEach((year) => {
         const oldMap = dataMapsByYear[year];
         const newMap = new Map();
-        oldMap.forEach(({ row, amount }) => {
+        oldMap.forEach(({ row, amount, obligedDataList, isObliged }) => {
             TEXT_COLUMNS.forEach((col) => {
                 if (row[col] && aliasMap.has(row[col])) row[col] = aliasMap.get(row[col]);
             });
             const newKey = createKey(row);
             if (newMap.has(newKey)) {
-                newMap.get(newKey).amount += amount;
+                const existing = newMap.get(newKey);
+                existing.amount += amount;
+                existing.isObliged = existing.isObliged || isObliged;
+                // Merge obliged data lists
+                if (obligedDataList) {
+                    existing.obligedDataList.push(...obligedDataList);
+                }
             } else {
-                newMap.set(newKey, { row, amount });
+                newMap.set(newKey, { row, amount, obligedDataList: obligedDataList || [], isObliged });
             }
         });
         dataMapsByYear[year] = newMap;
@@ -290,6 +302,8 @@ function rebuildDataMapsWithAliases(aliasMap) {
 function readCsvIntoMap(filePath, targetMap, yearKey, setHeaders) {
     return new Promise((resolve, reject) => {
         let seenFirstRow = false;
+        const itemFiscalYearMap = new Map(); // key -> Map<fiscalYear -> amount>
+
         fs.createReadStream(filePath)
             .pipe(csv())
             .on('data', (row) => {
@@ -312,24 +326,59 @@ function readCsvIntoMap(filePath, targetMap, yearKey, setHeaders) {
                 row.CATEGORY_LV5 = normalizeDescription(row.CATEGORY_LV5);
                 row.CATEGORY_LV6 = normalizeDescription(row.CATEGORY_LV6);
 
-                // console.log(row.FISCAL_YEAR, +yearKey - 543, row.FISCAL_YEAR == +yearKey - 543 ? '✅' : '❌');
-                if (row.FISCAL_YEAR != +yearKey - 543) {
-                    // skip row
-                    return;
+                const key = createKey(row);
+                const fiscalYearCE = row.FISCAL_YEAR ? parseInt(row.FISCAL_YEAR) : null;
+                const fiscalYearBE = fiscalYearCE ? fiscalYearCE + 543 : null; // Convert CE to BE
+                const amount = row.AMOUNT ? parseFloat(row.AMOUNT.replace(/,/g, '')) : 0;
+                const isObliged = String(row['OBLIGED?']).toLowerCase() === 'true';
+
+                // Track fiscal year breakdown for this item (in BE format)
+                if (!itemFiscalYearMap.has(key)) {
+                    itemFiscalYearMap.set(key, new Map());
+                }
+                const fiscalYearBreakdown = itemFiscalYearMap.get(key);
+
+                if (fiscalYearBE !== null) {
+                    if (fiscalYearBreakdown.has(fiscalYearBE)) {
+                        fiscalYearBreakdown.set(fiscalYearBE, fiscalYearBreakdown.get(fiscalYearBE) + amount);
+                    } else {
+                        fiscalYearBreakdown.set(fiscalYearBE, amount);
+                    }
                 }
 
-                const key = createKey(row);
-                const amount = row.AMOUNT ? parseFloat(row.AMOUNT.replace(/,/g, '')) : 0;
+                // For the main data map, only include rows matching this file's year
+                const fileYearBE = +yearKey; // Already in BE format
+                if (fiscalYearBE !== fileYearBE) {
+                    return;
+                }
 
                 if (targetMap.has(key)) {
                     // Duplicate key: sum the amounts
                     const existing = targetMap.get(key);
                     existing.amount += amount;
+                    existing.isObliged = existing.isObliged || isObliged;
                 } else {
-                    targetMap.set(key, { row, amount });
+                    targetMap.set(key, { row, amount, isObliged });
                 }
             })
-            .on('end', resolve)
+            .on('end', () => {
+                // After reading all rows, build obliged data with fiscal year breakdown
+                targetMap.forEach((data, key) => {
+                    const fiscalYearBreakdown = itemFiscalYearMap.get(key);
+                    const fiscalYears = [];
+
+                    if (data.isObliged && fiscalYearBreakdown) {
+                        fiscalYearBreakdown.forEach((amt, fy) => {
+                            fiscalYears.push({ fiscalYear: fy, amount: amt });
+                        });
+                        fiscalYears.sort((a, b) => a.fiscalYear - b.fiscalYear);
+                    }
+
+                    data.obligedDataList = fiscalYears;
+                });
+
+                resolve();
+            })
             .on('error', reject);
     });
 }
@@ -337,25 +386,22 @@ function readCsvIntoMap(filePath, targetMap, yearKey, setHeaders) {
 function buildHeaders() {
     const headerSet = new Set();
 
-    // Collect all headers from all years (excluding AMOUNT and AMOUNT_LASTYEAR)
+    // Collect all headers from all years (excluding per-year AMOUNT columns)
     Object.values(headersByYear).forEach((headers) => {
         headers.forEach((h) => {
-            if (h !== 'AMOUNT' && h !== 'AMOUNT_LASTYEAR' && h !== 'FISCAL_YEAR') {
+            if (h !== 'AMOUNT' && h !== 'FISCAL_YEAR') {
                 headerSet.add(h);
             }
         });
     });
 
     const baseHeaders = Array.from(headerSet);
-    // Add amount columns for each year
-    ['2565', '2566', '2567', '2568', '2569'].forEach((year) => {
-        baseHeaders.push(`AMOUNT_${year}`);
-    });
+    // Add single AMOUNT column (not per-year)
+    baseHeaders.push('AMOUNT');
+    baseHeaders.push('FISCAL_YEAR');
     baseHeaders.push('ROW_SOURCE');
-    // Obliged multi-year span columns
-    baseHeaders.push('OBLIGED_YEAR_START');
-    baseHeaders.push('OBLIGED_YEAR_END');
-    baseHeaders.push('OBLIGED_TOTAL_AMOUNT');
+    // Obliged data from each source year
+    baseHeaders.push('OBLIGED_DATA_JSON');
     return baseHeaders;
 }
 
@@ -387,7 +433,6 @@ function writeOuterJoin() {
     });
 
     const years = ['2565', '2566', '2567', '2568', '2569'];
-    const rowsWritten = 0;
 
     allKeys.forEach((key) => {
         // Get row data from latest available year (later years tend to have cleaner OCR)
@@ -400,33 +445,17 @@ function writeOuterJoin() {
             }
         }
 
-        const values = buildRowValues(baseRow, headers);
-
-        // Fill in amounts for each year
-        years.forEach((year) => {
-            const amountIndex = headers.indexOf(`AMOUNT_${year}`);
-            const yearData = dataMapsByYear[year].get(key);
-            if (amountIndex !== -1) {
-                values[amountIndex] = yearData ? yearData.amount : '';
-            }
-        });
-
-        // Determine row source
-        const rowSourceIndex = headers.indexOf('ROW_SOURCE');
+        // Determine which years have data for this item
         const yearsWithData = years.filter((year) => dataMapsByYear[year].has(key));
-        if (rowSourceIndex !== -1) {
-            values[rowSourceIndex] = yearsWithData.join(',');
-        }
 
-        // Obliged multi-year span: compute start/end year and total amount.
-        // Only populated for rows where OBLIGED?=true in at least one year.
-        const obligedYears = yearsWithData.filter((year) => {
-            const yearData = dataMapsByYear[year].get(key);
-            return yearData && String(yearData.row['OBLIGED?']).toLowerCase() === 'true';
+        // Pre-compute obliged years once per item (outside inner loop)
+        const obligedYears = yearsWithData.filter((y) => {
+            const yData = dataMapsByYear[y].get(key);
+            return yData && yData.isObliged;
         });
-        const nonObligedYears = yearsWithData.filter((year) => {
-            const yearData = dataMapsByYear[year].get(key);
-            return yearData && String(yearData.row['OBLIGED?']).toLowerCase() !== 'true';
+        const nonObligedYears = yearsWithData.filter((y) => {
+            const yData = dataMapsByYear[y].get(key);
+            return yData && !yData.isObliged;
         });
 
         // Flag inconsistency: same item marked OBLIGED?=TRUE in some years and FALSE in others
@@ -437,22 +466,36 @@ function writeOuterJoin() {
             );
         }
 
-        const obligedYearStartIndex = headers.indexOf('OBLIGED_YEAR_START');
-        const obligedYearEndIndex = headers.indexOf('OBLIGED_YEAR_END');
-        const obligedTotalIndex = headers.indexOf('OBLIGED_TOTAL_AMOUNT');
-        if (obligedYears.length > 0) {
-            if (obligedYearStartIndex !== -1) values[obligedYearStartIndex] = Math.min(...obligedYears);
-            if (obligedYearEndIndex !== -1) values[obligedYearEndIndex] = Math.max(...obligedYears);
-            if (obligedTotalIndex !== -1) {
-                const total = obligedYears.reduce((sum, year) => {
-                    const yearData = dataMapsByYear[year].get(key);
-                    return sum + (yearData ? yearData.amount : 0);
-                }, 0);
-                values[obligedTotalIndex] = total;
-            }
-        }
+        // Output one row per year (decompressed format)
+        yearsWithData.forEach((year) => {
+            const yearData = dataMapsByYear[year].get(key);
+            if (!yearData || yearData.amount === 0) return;
 
-        writeStream.write(`${values.map(escapeCsvValue).join(',')}\n`);
+            // Get fiscal year breakdown for this specific year
+            const fiscalYearBreakdown = yearData.obligedDataList || [];
+
+            const values = buildRowValues(baseRow, headers);
+
+            // Set the amount and fiscal year for this row
+            const amountIndex = headers.indexOf('AMOUNT');
+            const yearIndex = headers.indexOf('FISCAL_YEAR');
+            if (amountIndex !== -1) values[amountIndex] = yearData.amount;
+            if (yearIndex !== -1) values[yearIndex] = year;
+
+            // Determine row source
+            const rowSourceIndex = headers.indexOf('ROW_SOURCE');
+            if (rowSourceIndex !== -1) {
+                values[rowSourceIndex] = year;
+            }
+
+            // Store obliged data as JSON
+            const obligedDataJsonIndex = headers.indexOf('OBLIGED_DATA_JSON');
+            if (obligedDataJsonIndex !== -1) {
+                values[obligedDataJsonIndex] = JSON.stringify(fiscalYearBreakdown);
+            }
+
+            writeStream.write(`${values.map(escapeCsvValue).join(',')}\n`);
+        });
     });
 
     writeStream.end(() => {

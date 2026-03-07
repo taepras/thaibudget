@@ -218,7 +218,7 @@ function App() {
       const params = {
         year: [2569, 2568, 2567, 2566, 2565], // todo: dynamic years
         group: navigation[navigation.length - 1].groupBy,
-        collapseCategories: 'false', // fixme: buggy collapse
+        // collapseCategories: 'false', // fixme: buggy collapse
       };
 
       // filter by filter states
@@ -252,19 +252,17 @@ function App() {
       // If there are categories in the path, build filterCategoryPath
       if (hasCategoryInPath && categoryKeyStartIndex >= 0) {
         const categoryIds = [];
-        // Start from the first category entry and collect keys where previous groupBy was also 'category'
-        // This ensures we only collect actual category IDs, not IDs from other dimensions
+        // Collect keys where the PREVIOUS entry's groupBy was 'category'
+        // This ensures we capture category IDs even if the current groupBy was changed later
         for (let i = categoryKeyStartIndex; i < navigation.length; i++) {
-          if (navigation[i].groupBy === 'category' && navigation[i].key !== null) {
-            // Only add this key if the previous groupBy was also 'category'
-            // (meaning this key represents a category we drilled into, not another dimension)
-            if (i === categoryKeyStartIndex) {
-              // Skip the first category entry - its key comes from the previous dimension (e.g., project)
-              continue;
-            }
-            if (navigation[i - 1].groupBy === 'category') {
-              categoryIds.push(navigation[i].key);
-            }
+          // Skip the initial category entry (it has no key or its key is from a previous dimension)
+          if (i === categoryKeyStartIndex) {
+            continue;
+          }
+
+          // Check if the PREVIOUS entry's groupBy was 'category' - that means this key is a category ID
+          if (i > 0 && navigation[i - 1].groupBy === 'category' && navigation[i].key !== null) {
+            categoryIds.push(navigation[i].key);
           }
         }
         // If current groupBy is 'item' after categories, append -1 to the path

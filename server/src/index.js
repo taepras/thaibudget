@@ -61,9 +61,51 @@ const breakdownGroups = {
     groupBy: "f.item_description",
   },
   obliged: {
-    select: `case when f.obliged is null then 'null' when f.obliged = false then 'false' when f.obliged_year_start = f.fiscal_year then 'new' else 'carry' end as id, case when f.obliged is null then 'ไม่ระบุ' when f.obliged = false then 'งบไม่ผูกพัน' when f.obliged_year_start = f.fiscal_year then 'งบผูกพัน (เริ่มต้นปีนี้)' else 'งบผูกพัน (จากปีก่อนๆ)' end as name`,
+    select: `
+      case 
+        when f.obliged is null then 'null'
+        when f.obliged = false then 'false'
+        when f.obliged = true and f.obliged_data_by_source is not null then
+          case 
+            when f.fiscal_year = (select min((entry->>'fiscalYear')::int) from jsonb_array_elements(f.obliged_data_by_source) as entry) then 'new'
+            else 'carry'
+          end
+        else 'false'
+      end as id,
+      case 
+        when f.obliged is null then 'ไม่ระบุ'
+        when f.obliged = false then 'งบไม่ผูกพัน'
+        when f.obliged = true and f.obliged_data_by_source is not null then
+          case 
+            when f.fiscal_year = (select min((entry->>'fiscalYear')::int) from jsonb_array_elements(f.obliged_data_by_source) as entry) then 'งบผูกพัน (เริ่มต้นปีนี้)'
+            else 'งบผูกพัน (จากปีก่อนๆ)'
+          end
+        else 'งบไม่ผูกพัน'
+      end as name
+    `,
     join: "",
-    groupBy: `case when f.obliged is null then 'null' when f.obliged = false then 'false' when f.obliged_year_start = f.fiscal_year then 'new' else 'carry' end, case when f.obliged is null then 'ไม่ระบุ' when f.obliged = false then 'งบไม่ผูกพัน' when f.obliged_year_start = f.fiscal_year then 'งบผูกพัน (เริ่มต้นปีนี้)' else 'งบผูกพัน (จากปีก่อนๆ)' end`,
+    groupBy: `
+      case 
+        when f.obliged is null then 'null'
+        when f.obliged = false then 'false'
+        when f.obliged = true and f.obliged_data_by_source is not null then
+          case 
+            when f.fiscal_year = (select min((entry->>'fiscalYear')::int) from jsonb_array_elements(f.obliged_data_by_source) as entry) then 'new'
+            else 'carry'
+          end
+        else 'false'
+      end,
+      case 
+        when f.obliged is null then 'ไม่ระบุ'
+        when f.obliged = false then 'งบไม่ผูกพัน'
+        when f.obliged = true and f.obliged_data_by_source is not null then
+          case 
+            when f.fiscal_year = (select min((entry->>'fiscalYear')::int) from jsonb_array_elements(f.obliged_data_by_source) as entry) then 'งบผูกพัน (เริ่มต้นปีนี้)'
+            else 'งบผูกพัน (จากปีก่อนๆ)'
+          end
+        else 'งบไม่ผูกพัน'
+      end
+    `,
   },
 };
 
@@ -233,7 +275,7 @@ app.get("/api/breakdown", async (req, res) => {
     }
   }
 
-  const collapseCategories = req.query.collapseCategories === 'true';
+  const collapseCategories = req.query.collapseCategories === 'false';
 
   const filterCategoryId = parseId(req.query.filterCategoryId);
   let filterCategoryParamIndex = null;
@@ -296,9 +338,17 @@ app.get("/api/breakdown", async (req, res) => {
     } else if (filterObligedId === 'false') {
       conditions.push('f.obliged = false');
     } else if (filterObligedId === 'new') {
-      conditions.push('f.obliged = true and f.obliged_year_start = f.fiscal_year');
+      conditions.push(`
+        f.obliged = true 
+        and f.obliged_data_by_source is not null 
+        and f.fiscal_year = (select min((entry->>'fiscalYear')::int) from jsonb_array_elements(f.obliged_data_by_source) as entry)
+      `);
     } else if (filterObligedId === 'carry') {
-      conditions.push('f.obliged = true and (f.obliged_year_start < f.fiscal_year or f.obliged_year_start is null)');
+      conditions.push(`
+        f.obliged = true 
+        and f.obliged_data_by_source is not null 
+        and f.fiscal_year > (select min((entry->>'fiscalYear')::int) from jsonb_array_elements(f.obliged_data_by_source) as entry)
+      `);
     }
   }
 
@@ -378,7 +428,9 @@ app.get("/api/breakdown", async (req, res) => {
       ${resolvedGroupConfig.select},
       f.fiscal_year,
       sum(f.amount) as total_amount,
-      sum(f.amount) / nullif(sum(sum(f.amount)) over (partition by f.fiscal_year), 0) as pct
+      sum(f.amount) / nullif(sum(sum(f.amount)) over (partition by f.fiscal_year), 0) as pct,
+      bool_or(f.obliged) as obliged,
+      (array_agg(f.obliged_data_by_source) filter (where f.obliged_data_by_source is not null))[1] as obliged_data_by_source
     from fact_budget_item f
     ${[...joins].join(" ")}
     where ${conditions.join(" and ")}
@@ -413,13 +465,25 @@ app.get("/api/breakdown", async (req, res) => {
       const mergeKey = processedRow.name ?? processedRow.id;
       if (!rowMap.has(mergeKey)) {
         // Copy all group-level fields (id, name, level, ...) except year/amount
-        const { fiscal_year, total_amount, pct, ...groupFields } = processedRow;
-        rowMap.set(mergeKey, { ...groupFields, amounts: {}, pct: {} });
+        const { fiscal_year, total_amount, pct, obliged, obliged_data_by_source, ...groupFields } = processedRow;
+        rowMap.set(mergeKey, {
+          ...groupFields,
+          amounts: {},
+          pct: {},
+          obligedByYear: {},
+          obligedData: {}
+        });
       }
       const entry = rowMap.get(mergeKey);
       entry.amounts[yr] = (entry.amounts[yr] || 0) + Number(row.total_amount);
       // pct will be re-derived on the client from totals; just accumulate here
       entry.pct[yr] = (entry.pct[yr] || 0) + Number(row.pct);
+      // Store obliged flag per year
+      entry.obligedByYear[yr] = row.obliged;
+      // Store obliged data breakdown per year (fiscalYear breakdown from source file)
+      if (row.obliged_data_by_source) {
+        entry.obligedData[yr] = row.obliged_data_by_source;
+      }
     }
 
     // Note: The main query already includes items directly in the filtered category
