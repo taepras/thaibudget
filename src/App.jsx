@@ -95,25 +95,15 @@ const DEFAULT_HIERARCHY = [
   'item'
 ];
 
-const getNextGroupBy = (navigation, navigatingTo) => {
-  const currentGroupBy = navigation[navigation.length - 1]?.groupBy;
-
-  console.log('🫥 getNextGroupBy');
-  console.log('>> latest nav', navigation[navigation.length - 1]);
-  console.log('>> currentGroupBy', currentGroupBy);
-  if (currentGroupBy === 'category') {
-    if (!navigatingTo?.metadata?.isTerminal)
-      return 'category';
-  } else if (currentGroupBy === 'budgetary_unit') {
-    // If drilling into a ministry (level 1), stay at budgetary_unit to show sub-units
-    if (!navigatingTo?.metadata?.isTerminal)
-      return 'budgetary_unit';
-  } else if (currentGroupBy === 'budget_plan') {
-    return 'output_project'
+// Returns the next groupBy dimension to show after drilling into `currentGroupBy`,
+// skipping any dimensions that already have a filter applied.
+const getNextInHierarchy = (currentGroupBy, navFilters) => {
+  const currentIdx = DEFAULT_HIERARCHY.indexOf(currentGroupBy);
+  for (let i = currentIdx + 1; i < DEFAULT_HIERARCHY.length; i++) {
+    if (!(DEFAULT_HIERARCHY[i] in navFilters)) return DEFAULT_HIERARCHY[i];
   }
-
-  return DEFAULT_HIERARCHY.filter((x) => !navigation.map((n) => n.groupBy).includes(x))?.[0] ?? null;
-}
+  return 'item';
+};
 
 function App() {
   const [data, setData] = useState([]);
@@ -129,66 +119,64 @@ function App() {
     setCompareYear(Math.max(2565, year - 1));
   }, []);
 
-  const [navigation, setNavigation] = useState([{ key: null, displayName: 'รวมทุกหน่วยงาน', groupBy: 'budgetary_unit' }]);
+  const [navGroupBy, setNavGroupBy] = useState('budgetary_unit');
+  const [navDisplayName, setNavDisplayName] = useState('รวมทุกหน่วยงาน');
   const [filters, setFilters] = useState({});
+  // Undo history: each entry = { navGroupBy, navDisplayName, filters }
+  const [navHistory, setNavHistory] = useState([]);
 
-  const navigateTo = useCallback((key, displayName = null, metadata = {}) => {
-    if (displayName === null) displayName = key;
+  const navigateTo = useCallback((key, clickedDisplayName, metadata = {}) => {
+    setFilters((currentFilters) => {
+      setNavHistory((currentHistory) => [
+        ...currentHistory,
+        { navGroupBy, navDisplayName, filters: currentFilters },
+      ]);
 
+      const newFilters = { ...currentFilters };
 
-    setNavigation((currentNav) => {
-      console.log('😡 navigating...');
-      console.log('>> old nav', currentNav);
-      console.log('>> going to...', { key, displayName, metadata });
-      const groupBy = getNextGroupBy(currentNav, { key, displayName, metadata });
-      console.log('🫠 new groupBy >> ', groupBy);
-      console.log('🫠 new navigation >> ', [...currentNav, { key, displayName, groupBy, metadata }]);
-      return [...currentNav, { key, displayName, groupBy, metadata }];
+      if (navGroupBy === 'budgetary_unit') {
+        const existing = currentFilters.budgetary_unit;
+        newFilters.budgetary_unit = existing ? `${existing},${key}` : String(key);
+        setNavGroupBy(metadata.isTerminal
+          ? getNextInHierarchy('budgetary_unit', newFilters)
+          : 'budgetary_unit');
+      } else if (navGroupBy === 'category') {
+        if (Number(key) !== -1) {
+          const existing = currentFilters.category;
+          newFilters.category = existing ? `${existing},${key}` : String(key);
+        }
+        setNavGroupBy(metadata.isTerminal || Number(key) === -1 ? 'item' : 'category');
+      } else {
+        newFilters[navGroupBy] = String(key);
+        setNavGroupBy(getNextInHierarchy(navGroupBy, newFilters));
+      }
+
+      setNavDisplayName(clickedDisplayName ?? String(key));
+      return newFilters;
     });
+  }, [navGroupBy, navDisplayName]);
 
-    // setNavigation((currentNav) => {
-    //   // // Special case: if clicking on sentinel id -1 in category context,
-    //   // // append -1 to the category path and switch to 'item' groupBy.
-    //   // // This tells the backend "show items directly in this category, not subcategories"
-    //   // if (key === -1 && groupBy === undefined) {
-    //   //   const lastNode = currentNav[currentNav.length - 1];
-    //   //   if (lastNode?.groupBy === 'category') {
-    //   //     // Update current category node to groupBy='item' (which will trigger sending -1 in path)
-    //   //     const newNav = [...currentNav];
-    //   //     newNav[newNav.length - 1] = { ...newNav[newNav.length - 1], groupBy: 'item' };
-    //   //     return newNav;
-    //   //   }
-    //   // }
-
-    //   // if (groupBy === null) {
-    //   const nextNav = [...currentNav, { key, groupBy, displayName, metadata }]
-    //   groupBy = getNextGroupBy(nextNav);
-    //   console.log('🫥getNextGroupBy >> ', groupBy);
-
-    //     // // If drilling into a terminal category, treat category as "used" and get the next groupBy
-    //     // if (currentNav[currentNav.length - 1]?.groupBy === 'category' && metadata.isTerminal) {
-    //     //   // Create a temporary nav that includes this category click to simulate it being "used"
-    //     //   const tempNav = [...currentNav, { key, groupBy: 'category', displayName }];
-    //     //   groupBy = getNextGroupBy(tempNav);
-    //     // }
-    //   // }
-
-    //   return nextNav;
-    // });
+  const goBack = useCallback(() => {
+    setNavHistory((currentHistory) => {
+      if (currentHistory.length === 0) return currentHistory;
+      const newHistory = [...currentHistory];
+      const prev = newHistory.pop();
+      setNavGroupBy(prev.navGroupBy);
+      setNavDisplayName(prev.navDisplayName);
+      setFilters(prev.filters);
+      return newHistory;
+    });
   }, []);
 
-  const popNavigationToLevel = useCallback((n) => {
-    console.log('😡 pop navigation to level', n, navigation, navigation.slice(0, n + 1));
-    setNavigation(navigation.slice(0, n + 1));
-  }, [navigation, setNavigation]);
-
   const setGroupBy = useCallback((groupBy) => {
-    console.log('😡 set groupBy', groupBy);
-    setNavigation((nav) => {
-      const newNav = [...nav];
-      newNav[newNav.length - 1].groupBy = groupBy;
-      return newNav;
-    });
+    setNavGroupBy(groupBy);
+  }, []);
+
+  const resetAll = useCallback(() => {
+    setFilters({});
+    setNavGroupBy('budgetary_unit');
+    setNavDisplayName('รวมทุกหน่วยงาน');
+    setNavHistory([]);
   }, []);
 
   const [dimensions, setDimensions] = useState({});
@@ -205,22 +193,20 @@ function App() {
   }, [currentYear]);
 
   useEffect(() => {
-    console.log('🗺️ navigation updated', navigation);
+    console.log('🗺️ view state updated', { navGroupBy, filters });
     let cancelled = false;
 
     const fetchData = async () => {
       setLoading(true);
       const apiEndpoint = `${process.env.REACT_APP_API_URL}/api/breakdown`;
       const params = {
-        year: [2569, 2568, 2567, 2566, 2565], // todo: dynamic years
-        group: navigation[navigation.length - 1].groupBy,
-        // collapseCategories: 'false', // fixme: buggy collapse
+        year: [currentYear, ...[2569, 2568, 2567, 2566, 2565].filter(y => y !== currentYear)], // currentYear first so backend uses it for isTerminal
+        group: navGroupBy,
       };
 
-      // filter by filter states
+      // Build API filter parameters from effective filters
       for (const [filterName, filterValue] of Object.entries(filters)) {
-        if (filterValue !== null) {
-          // Convert snake_case to camelCase (e.g. budgetary_unit -> BudgetaryUnit)
+        if (filterValue != null) {
           const filterNameCamelCase = filterName
             .split('_')
             .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
@@ -230,98 +216,14 @@ function App() {
           if (filterName === 'budgetary_unit') {
             params.filterBudgetaryUnitPath = filterValue;
           } else if (filterName === 'category') {
-            params.filterCategoryPath = filterValue;
+            // When showing items inside a nav-derived category, append -1 to signal direct items
+            const path = (navGroupBy === 'item' && 'category' in filters)
+              ? `${filterValue},-1`
+              : filterValue;
+            params.filterCategoryPath = path;
           } else {
             params[`filter${filterNameCamelCase}Id`] = filterValue;
           }
-        }
-      }
-
-      // Build filter parameters from navigation trail
-      const categoryKeyStartIndex = navigation.findIndex(node => node.groupBy === 'category');
-      const budgetaryUnitKeyStartIndex = navigation.findIndex(node => node.groupBy === 'budgetary_unit');
-      let hasCategoryInPath = false;
-      let hasBudgetaryUnitInPath = false;
-
-      for (let i = 0; i < navigation.length - 1; i++) {
-        if (navigation[i].groupBy && navigation[i + 1].key) {
-          const groupByCamelCase = navigation[i].groupBy
-            .split('_')
-            .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-            .join('');
-
-          // For category grouping, collect all category IDs into a path array
-          if (navigation[i].groupBy === 'category') {
-            hasCategoryInPath = true;
-            // Don't set filterCategoryId here; we'll handle it with filterCategoryPath below
-          } else if (navigation[i].groupBy === 'budgetary_unit') {
-            hasBudgetaryUnitInPath = true;
-            // Don't set filterBudgetaryUnitId here; we'll handle ministry filtering below
-          } else if (!(navigation[i].groupBy in filters)) {
-            params[`filter${groupByCamelCase}Id`] = navigation[i + 1].key;
-          }
-        }
-      }
-
-      // If there are budgetary units in the path, build filterBudgetaryUnitPath
-      if (hasBudgetaryUnitInPath && budgetaryUnitKeyStartIndex >= 0 && !('budgetary_unit' in filters)) {
-        const budgetaryUnitIds = [];
-
-        // Collect keys where the PREVIOUS entry's groupBy was 'budgetary_unit'
-        // This captures ministry id (level 1) and budgetary unit id (level 2) drill path.
-        for (let i = budgetaryUnitKeyStartIndex; i < navigation.length; i++) {
-          if (i === budgetaryUnitKeyStartIndex) {
-            continue;
-          }
-
-          if (i > 0 && navigation[i - 1].groupBy === 'budgetary_unit' && navigation[i].key !== null) {
-            budgetaryUnitIds.push(navigation[i].key);
-          }
-        }
-
-        // Deduplicate while preserving order.
-        const uniqueBudgetaryUnitIds = [...new Set(budgetaryUnitIds)];
-        if (uniqueBudgetaryUnitIds.length > 0) {
-          params.filterBudgetaryUnitPath = uniqueBudgetaryUnitIds.join(',');
-        }
-      }
-
-      // If there are categories in the path, build filterCategoryPath
-      if (hasCategoryInPath && categoryKeyStartIndex >= 0 && !('category' in filters)) {
-        const categoryIds = [];
-        // Collect keys where the PREVIOUS entry's groupBy was 'category'
-        // This ensures we capture category IDs even if the current groupBy was changed later
-        for (let i = categoryKeyStartIndex; i < navigation.length; i++) {
-          // Skip the initial category entry (it has no key or its key is from a previous dimension)
-          if (i === categoryKeyStartIndex) {
-            continue;
-          }
-
-          // Check if the PREVIOUS entry's groupBy was 'category' - that means this key is a category ID
-          if (i > 0 && navigation[i - 1].groupBy === 'category' && navigation[i].key !== null) {
-            categoryIds.push(navigation[i].key);
-          }
-        }
-        // If current groupBy is 'item' after categories, append -1 to the path
-        // This tells backend to show items directly in the last category.
-        // If the last item node has a real key (not -1), it's a terminal category whose ID must
-        // be included in the path first, then -1 to signal "show direct items of this category".
-        if (navigation[navigation.length - 1].groupBy === 'item' && categoryIds.length > 0) {
-          const itemNodeKey = navigation[navigation.length - 1].key;
-          // Only add the key if it's not already in the array (avoid duplicates)
-          if (itemNodeKey !== null && itemNodeKey !== -1 && itemNodeKey !== '-1' &&
-              !categoryIds.includes(itemNodeKey)) {
-            categoryIds.push(itemNodeKey);
-          }
-          categoryIds.push(-1);
-        }
-        // Deduplicate category IDs while preserving order (in case of unexpected duplicates)
-        const uniqueCategoryIds = [...new Set(categoryIds.filter(id => id !== -1))];
-        if (categoryIds[categoryIds.length - 1] === -1) {
-          uniqueCategoryIds.push(-1);
-        }
-        if (uniqueCategoryIds.length > 0) {
-          params.filterCategoryPath = uniqueCategoryIds.join(',');
         }
       }
 
@@ -344,41 +246,20 @@ function App() {
 
       console.log('✅ api data loaded', result);
 
-      // Handle empty rows: skip to next level in hierarchy if possible
+      // Handle empty rows: skip to next level in hierarchy
       if (result.rows && result.rows.length === 0 && !result.isLeafLevel) {
-        console.log('⚠️ Empty rows at non-leaf level, advancing to next grouping');
-        // Always advance *forward* from the current groupBy position in the hierarchy.
-        // Using "first unused" would loop: e.g. output→project (replacing 'output' in nav)
-        // then project→output (since 'output' is now gone from usedGroupBys).
-        setNavigation((nav) => {
-          const currentGroupBy = nav[nav.length - 1]?.groupBy;
+        if (navGroupBy === 'category') {
+          setNavGroupBy('item');
+        } else {
+          const next = getNextInHierarchy(navGroupBy, filters);
+          if (next && next !== navGroupBy) setNavGroupBy(next);
+        }
+        return; // re-run effect with new groupBy
+      }
 
-          // Special case: if current groupBy is 'category' and we got empty rows,
-          // it means there are no more subcategories. Switch to 'item' to show items.
-          if (currentGroupBy === 'category') {
-            const newNav = [...nav];
-            newNav[newNav.length - 1] = { ...newNav[newNav.length - 1], groupBy: 'item' };
-            return newNav;
-          }
-
-          const nextGroupBy = getNextGroupBy(nav);
-          if (!nextGroupBy || nextGroupBy === currentGroupBy) {
-            // No next group, or nextGroupBy is the same as current
-            // This prevents infinite loops.
-            return nav;
-          }
-          const newNav = [...nav];
-          newNav[newNav.length - 1] = { ...newNav[newNav.length - 1], groupBy: nextGroupBy };
-          return newNav;
-        });
-        return; // Let the effect re-run with new groupBy
-      } else if (navigation[navigation.length - 1].groupBy === 'category' && result.group === 'item') {
-        // Special case: if we drilled into a category and got item rows, update the navigation object to reflect that we're now at the 'item' groupBy level.
-        setNavigation((nav) => {
-          const newNav = [...nav];
-          newNav[newNav.length - 1].groupBy = 'item';
-          return newNav;
-        });
+      // If backend switched category→item, sync groupBy
+      if (navGroupBy === 'category' && result.group === 'item') {
+        setNavGroupBy('item');
       }
 
       setData(result);
@@ -386,9 +267,8 @@ function App() {
     };
     fetchData();
 
-    // Cancel stale in-flight fetch when navigation/year changes before it resolves
     return () => { cancelled = true; };
-  }, [currentYear, compareYear, navigation, filters]);
+  }, [currentYear, compareYear, navGroupBy, filters]);
 
   const setSumWindowsIdx = (i, value) => {
     const temp = [...sumWindows];
@@ -425,14 +305,16 @@ function App() {
             isMultipleMaxSum={isMultipleMaxSum}
             sumWindows={sumWindows}
             index={0}
-            navigation={navigation}
+            groupBy={navGroupBy}
+            displayName={navDisplayName}
+            canGoBack={navHistory.length > 0}
+            goBack={goBack}
             navigateTo={navigateTo}
-            popNavigationToLevel={popNavigationToLevel}
             setGroupBy={setGroupBy}
-            defaultHierarchy={DEFAULT_HIERARCHY}
             filterableDimensions={dimensions}
             filters={filters}
             setFilters={setFilters}
+            resetAll={resetAll}
           />
         </div>
         {isCompareView && (

@@ -391,7 +391,6 @@ export function registerBreakdownRoute(app) {
         ${resolvedGroupConfig.select},
         f.fiscal_year,
         sum(f.amount) as total_amount,
-        sum(f.amount) / nullif(sum(sum(f.amount)) over (partition by f.fiscal_year), 0) as pct,
         bool_or(f.obliged) as obliged,
         (array_agg(f.obliged_data_by_source) filter (where f.obliged_data_by_source is not null))[1] as obliged_data_by_source
       from fact_budget_item f
@@ -435,7 +434,6 @@ export function registerBreakdownRoute(app) {
           const {
             fiscal_year,
             total_amount,
-            pct,
             obliged,
             obliged_data_by_source,
             ...groupFields
@@ -443,15 +441,12 @@ export function registerBreakdownRoute(app) {
           rowMap.set(mergeKey, {
             ...groupFields,
             amounts: {},
-            pct: {},
             obligedByYear: {},
             obligedData: {},
           });
         }
         const entry = rowMap.get(mergeKey);
         entry.amounts[yr] = (entry.amounts[yr] || 0) + Number(row.total_amount);
-        // pct will be re-derived on the client from totals; just accumulate here
-        entry.pct[yr] = (entry.pct[yr] || 0) + Number(row.pct);
         // Store obliged flag per year
         entry.obligedByYear[yr] = row.obliged;
         // Store obliged data breakdown per year (fiscalYear breakdown from source file)
@@ -591,6 +586,9 @@ export function registerBreakdownRoute(app) {
         if (categoryIds.length > 0) {
           // Filter-aware child check: a category is non-terminal only if at least one of its
           // direct children has fact_budget_item rows matching the current filters.
+          // Append an equality condition on years[0] (= $1) so isTerminal reflects only the primary
+          // year. The original IN clause stays so all year params remain referenced by Postgres.
+          const primaryYearConditionsSnapshot = [...filterConditionsSnapshot, "f_col.fiscal_year = $1"];
           const childCheckParams = [...filterParamsSnapshot, categoryIds];
           const categoryIdsParamIdx = childCheckParams.length;
           const childCheckSql = `
@@ -602,7 +600,7 @@ export function registerBreakdownRoute(app) {
                 from fact_budget_item f_col
                 ${filterJoinsSnapshot.join("\n                ")}
                 join dim_category_path cp_col_child on f_col.category_id = cp_col_child.descendant_id
-                where ${filterConditionsSnapshot.join(" and ")}
+                where ${primaryYearConditionsSnapshot.join(" and ")}
                   and cp_col_child.ancestor_id = c_child.id
               )
             group by c_child.parent_id

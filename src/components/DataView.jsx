@@ -161,16 +161,19 @@ function DataView({
   index = 0,
   isMultipleMaxSum = false,
   sumWindows = [],
-  navigation = [],
-  navigateTo = (key, groupBy = null) => { },
-  popNavigationToLevel = (n) => { },
+  groupBy = 'budgetary_unit',
+  displayName = 'รวมทุกหน่วยงาน',
+  canGoBack = false,
+  goBack = () => {},
+  navigateTo = (key, displayName, metadata) => { },
   setGroupBy = (axis) => { },
   currentYear=2569,
   compareYear=2568,
   setCurrentYear = () => {},
   filterableDimensions = {},
   filters = {},
-  setFilters = ({}) => {},
+  setFilters = () => {},
+  resetAll = () => {},
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredItemName, setHoveredItemName] = useState(null);
@@ -218,26 +221,12 @@ function DataView({
   }, []);
 
   const availableGroupByOptions = useMemo(() => {
-    // Sequential axes (budgetary_unit, output, project, item) can only be reached
-    // by drilling down via tile clicks — they are never user-selectable in the dropdown.
-    // Only "root" axes the user can freely choose from the dropdown:
-    const selectableOptions = ['budgetary_unit', 'budget_plan', 'category', 'obliged', 'output_project'];
-
-    // Exclude any axis already locked in by a *parent* navigation level.
-    // The current level's groupBy is still changeable, so we only filter out parent levels.
-    const parentGroupBys = navigation.slice(0, -1).map((x) => x.groupBy);
-
-    const options = selectableOptions.filter((x) => !parentGroupBys.includes(x));
-    if (
-      !navigation
-        .map((x) => x.groupBy)
-        .includes(navigation[navigation.length - 1].groupBy)
-    ) {
-      options.push(navigation[navigation.length - 1].groupBy);
-    }
-    console.log('availableGroupByOptions', navigation, parentGroupBys, options);
+    const selectableOptions = ['budgetary_unit', 'budget_plan', 'category', 'obliged', 'output_project', 'item'];
+    // Exclude dimensions already locked in by tile-click navigation (in filters)
+    const lockedDims = new Set(Object.keys(filters));
+    const options = selectableOptions.filter((x) => !lockedDims.has(x) || x === groupBy);
     return options.map((x) => ({ value: x, label: THAI_NAME[x] || x }));
-  }, [navigation]);
+  }, [filters, groupBy]);
 
   const growth = useMemo(() => {
     if (!data || !data.totals) return 0;
@@ -249,23 +238,12 @@ function DataView({
     return (current - previous) / previous;
   }, [data, currentYear, compareYear]);
 
-  // Get isLeafLevel from API response
-  // const isLeafLevel = data?.isLeafLevel ?? false;
   const isLeafLevel = useMemo(
-    () => navigation[navigation.length - 1].groupBy === 'item' || data?.isLeafLevel, [navigation, data]
+    () => groupBy === 'item' || data?.isLeafLevel, [groupBy, data]
   );
 
-  const computedFilters = useMemo(() => {
-    const navigationFilters = {};
-    for (let i = 0; i < navigation.length - 1; i++) {
-      navigationFilters[navigation[i].groupBy] = navigation[i + 1].key
-    }
-    const newFilters = {
-      ...navigationFilters,
-      ...filters,
-    }
-    return newFilters;
-  }, [filters, navigation])
+  // filters is already the merged effective filter state from App.jsx
+  const computedFilters = filters;
 
   return (
     <FullView>
@@ -290,54 +268,27 @@ function DataView({
         >
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, paddingBottom: '16px'}}>
             <BreadCrumbContainer>
-              <BreadCrumbText>
-                {/* {JSON.stringify(navigation)} */}
-                <DropdownLink
-                  label={`งบประมาณปี ${currentYear}`}
-                  options={[
-                    { value: 2569, label: 2569 },
-                    { value: 2568, label: 2568 },
-                    { value: 2567, label: 2567 },
-                    { value: 2566, label: 2566 },
-                    { value: 2565, label: 2565 },
-                  ]}
-                  value={currentYear}
-                  onChange={setCurrentYear}
-                />
-              </BreadCrumbText>
-              {navigation
-                .filter((x, i) => i < navigation.length - 1)
-                .map((x, i) => (
-                  <React.Fragment key={navigation.slice(0, i + 1).map((n) => n.key).join('/')}>
-                    <span>&gt;</span>
-                    <BreadCrumbItem
-                      type="button"
-                      onClick={() => { popNavigationToLevel(i); }}
-                      title={x.displayName}
-                    >
-                      {x.displayName.length < 20 ? x.displayName : `${x.displayName.substr(0, 20)}...`}
-                    </BreadCrumbItem>
-                  </React.Fragment>
-                ))
-              }
-            {/* </div> */}
+              {canGoBack ? (
+                <BreadCrumbItem type="button" onClick={goBack}>
+                  ← กลับ
+                </BreadCrumbItem>
+              ) : (
+                <BreadCrumbText>
+                  สำรวจงบประมาณประจำปี {currentYear}
+                </BreadCrumbText>
+              )}
             </BreadCrumbContainer>
             <h1
               style={{
                 margin: '8px 0',
                 fontSize: 24,
                 overflow: 'hidden',
-                // whiteSpace: 'nowrap',
                 textOverflow: 'ellipsis',
                 minWidth: 0
               }}
-              title={navigation[navigation.length - 1].displayName}
+              title={displayName}
             >
-              {
-                navigation.length > 0
-                ? navigation[navigation.length - 1].displayName
-                : 'งบประมาณปี ' + currentYear
-              }
+              {displayName}
             </h1>
             <div style={{ fontSize: 14, opacity: 0.6 }}>
               {data.totals?.["" + currentYear]?.toLocaleString() ?? 'N/A'} บาท {' '}
@@ -350,52 +301,8 @@ function DataView({
                 {(growth >= 0 ? '+' : '') + (growth * 100).toFixed(1)}
                 {`% จากปี ${compareYear})`}
               </span>}
-              {/* {' '} — แบ่งตาม {' '}
-              <DropdownLink
-                label={`${THAI_NAME[navigation[navigation.length - 1].groupBy] || navigation[navigation.length - 1].groupBy}`}
-                options={availableGroupByOptions}
-                value={navigation[navigation.length - 1].groupBy}
-                onChange={setGroupBy}
-              /> */}
             </div>
-            {/* <div style={{ fontSize: 14, opacity: 0.6, marginTop: 8 }}>
-              <BreadCrumbText>กรอง...</BreadCrumbText>
-              {Object.keys(filterableDimensions ?? {}).map((key) => {
-                const options = [
-                  ...filterableDimensions[key]?.map(k => ({ value: k.id, label: k.name })),
-                  { value: null, label: 'ทั้งหมด' }
-                ].sort((a, b) => {
-                  if (a?.value === null) return -1;
-                  if (b?.value === null) return 1;
-                  return a?.label?.localeCompare(b?.label);
-                });
-                if (options) {
-                  return (
-                    <BreadCrumbText key={`filter-control-${key}`} style={{ marginLeft: 8 }}>
-                      <DropdownLink
-                        label={`${THAI_NAME[key] || key}: ${options.find(o => o.value === filters?.[key])?.label || 'ทั้งหมด'}`}
-                        options={options}
-                        value={filters?.[key]}
-                        onChange={(value) => setFilters((prev) => ({ ...prev, [key]: value }))}
-                      />
-                    </BreadCrumbText>
-                  );
-                }
-                return null;
-              })}
-            </div> */}
           </div>
-
-          {/* <div>
-            <label style={{ fontSize: 12, opacity: 0.6 }}>Filter</label>
-            <br />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="หน่วยรับงบหรือกระทรวง"
-            />
-          </div> */}
           <CreditLink target="_blank" href="https://taepras.com">
             <ResponsiveImage
               src={`${process.env.PUBLIC_URL}/tp_logo_dark.svg`}
@@ -411,9 +318,9 @@ function DataView({
           <SidebarFilterGroup>
             <SidebarFilterGroupTitle>แบ่งตาม</SidebarFilterGroupTitle>
             <DropdownLink
-              label={`${THAI_NAME[navigation[navigation.length - 1].groupBy] || navigation[navigation.length - 1].groupBy}`}
+              label={`${THAI_NAME[groupBy] || groupBy}`}
               options={availableGroupByOptions}
-              value={navigation[navigation.length - 1].groupBy}
+              value={groupBy}
               onChange={setGroupBy}
             />
           </SidebarFilterGroup>
@@ -433,7 +340,27 @@ function DataView({
             />
           </SidebarFilterGroup>
           <SidebarFilterGroup>
-            <SidebarFilterGroupTitle>กรอง</SidebarFilterGroupTitle>
+            <SidebarFilterGroupTitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              กรอง
+              {(Object.keys(filters).length > 0 || canGoBack) && (
+                <button
+                  type="button"
+                  onClick={resetAll}
+                  style={{
+                    background: 'none',
+                    border: '1px solid rgba(255,255,255,0.4)',
+                    borderRadius: 4,
+                    color: 'rgba(255,255,255,0.7)',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    padding: '1px 6px',
+                    lineHeight: '1.4',
+                  }}
+                >
+                  รีเซ็ต
+                </button>
+              )}
+            </SidebarFilterGroupTitle>
             {Object.keys(filterableDimensions ?? {}).map((key) => {
               const dimItems = filterableDimensions[key] ?? [];
               const isHierarchical = dimItems.some((k) => k.children?.length > 0);
@@ -491,7 +418,7 @@ function DataView({
           main={
             <Treemap
               ref={treemapRef}
-              title={navigation[navigation.length - 1].displayName}
+              title={displayName}
               data={data}
               isLoading={isLoading}
               filters={filters}
