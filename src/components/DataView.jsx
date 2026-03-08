@@ -113,12 +113,13 @@ const SidebarFilter = styled.div`
 
 const SidebarFilterGroupTitle = styled.h4`
   font-weight: bold;
-  color: rgba(255, 255, 255, 0.6);  
+  color: rgba(255, 255, 255, 1);  
   margin: 0;
+  width: 100%;
 
   @media screen and (orientation: portrait) {
     white-space: nowrap;
-    margin-right: 8px;
+    width: unset;
   }
 `;
 
@@ -127,16 +128,48 @@ const SidebarFilterGroup = styled.div`
   margin-bottom: 24px;
   display: flex;
   flex-direction: column;
+  align-items: start;
   gap: 8px;
 
   @media screen and (orientation: portrait) {
-    flex-direction: row;
-    margin-left: 16px;
+    // flex-direction: row;
+    margin-right: 24px;
     margin-bottom: 0px;
+    gap: 4px;
 
     * {
       white-space: nowrap;
     }
+
+    &:first-child {
+      margin-left: 0px;
+    }
+  }
+`;
+
+const FilterGroupContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 8px;
+
+  @media screen and (orientation: portrait) {
+    flex-direction: row;
+    margin: 0px;
+
+    * {
+      white-space: nowrap;
+    }
+
+    &:first-child {
+      margin-left: 0px;
+    }
+  }
+`;
+
+const HideOnMobile = styled.div`
+  @media screen and (orientation: portrait) {
+    display: none;
   }
 `;
 
@@ -267,34 +300,37 @@ function DataView({
           }}
         >
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, paddingBottom: '16px'}}>
-            <BreadCrumbContainer>
-              {canGoBack ? (
+            {/* <BreadCrumbContainer>
+              {canGoBack && (
                 <BreadCrumbItem type="button" onClick={goBack}>
-                  ← กลับ
+                  ← ย้อนกลับ
                 </BreadCrumbItem>
-              ) : (
-                <BreadCrumbText>
-                  สำรวจงบประมาณประจำปี {currentYear}
-                </BreadCrumbText>
               )}
-            </BreadCrumbContainer>
+              <BreadCrumbText>
+                สำรวจงบประมาณประจำปี {currentYear}
+              </BreadCrumbText>
+            </BreadCrumbContainer> */}
             <h1
               style={{
-                margin: '8px 0',
-                fontSize: 24,
+                margin: '0 0 8px',
+                fontSize: 20,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                minWidth: 0
+                fontWeight: 'normal',
               }}
               title={displayName}
             >
               {displayName}
             </h1>
-            <div style={{ fontSize: 14, opacity: 0.6 }}>
+            <div style={{ fontSize: 24, fontWeight: 'bold' }}>
               {data.totals?.["" + currentYear]?.toLocaleString() ?? 'N/A'} บาท {' '}
               {currentYear > 2565 && <span
                 style={{
                   color: growth > 0 ? '#4f4' : growth < 0 ? '#f44' : 'inherit',
+                  fontSize: 14,
+                  opacity: 0.6,
+                  fontWeight: 'normal',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {'('}
@@ -314,7 +350,35 @@ function DataView({
       </div>
       <DataViewContainer>
         <SidebarFilter>
-          <Ui.Title style={{ marginBottom: 16, whiteSpace: 'nowrap' }}>กรอง/แบ่งกลุ่ม</Ui.Title>
+          <HideOnMobile>
+            <Ui.Title style={{ marginBottom: 16, whiteSpace: 'nowrap' }}>
+              กรอง/แบ่งกลุ่ม
+            </Ui.Title>
+          </HideOnMobile>
+          {canGoBack && (
+            <div>
+              <button
+                type="button"
+                onClick={goBack}
+                style={{
+                  background: 'none',
+                  border: '1px solid rgba(255,255,255,0.4)',
+                  borderRadius: 4,
+                  color: 'rgba(255,255,255,0.7)',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  padding: '1px 6px',
+                  lineHeight: '1.4',
+                  marginBottom: 16,
+                  marginRight: 16,
+                  marginTop: -4,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                ← ย้อนกลับ
+              </button>
+            </div> // FIXME: refactor
+          )}
           <SidebarFilterGroup>
             <SidebarFilterGroupTitle>แบ่งตาม</SidebarFilterGroupTitle>
             <DropdownLink
@@ -355,12 +419,15 @@ function DataView({
                     fontSize: '0.75rem',
                     padding: '1px 6px',
                     lineHeight: '1.4',
+                    marginLeft: 8,
+                    marginTop: -4,
                   }}
                 >
                   รีเซ็ต
                 </button>
               )}
             </SidebarFilterGroupTitle>
+            <FilterGroupContainer>
             {Object.keys(filterableDimensions ?? {}).map((key) => {
               const dimItems = filterableDimensions[key] ?? [];
               const isHierarchical = dimItems.some((k) => k.children?.length > 0);
@@ -407,6 +474,7 @@ function DataView({
                 </div>
               );
             })}
+            </FilterGroupContainer>
           </SidebarFilterGroup>
         </SidebarFilter>
         <ResizableSplitView

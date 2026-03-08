@@ -9,6 +9,7 @@ import logo from './logo.svg';
 import './App.css';
 import DataView from './components/DataView';
 import FullView from './components/FullView';
+import { set } from 'd3-collection';
 
 const PageContainer = styled.div`
  display: flex;
@@ -120,8 +121,9 @@ function App() {
   }, []);
 
   const [navGroupBy, setNavGroupBy] = useState('budgetary_unit');
-  const [navDisplayName, setNavDisplayName] = useState('รวมทุกหน่วยงาน');
+  const [navDisplayName, setNavDisplayName] = useState('งบรวมทุกหน่วยงาน');
   const [filters, setFilters] = useState({});
+  const [filterNames, setFilterNames] = useState({});
   // Undo history: each entry = { navGroupBy, navDisplayName, filters }
   const [navHistory, setNavHistory] = useState([]);
 
@@ -129,7 +131,7 @@ function App() {
     setFilters((currentFilters) => {
       setNavHistory((currentHistory) => [
         ...currentHistory,
-        { navGroupBy, navDisplayName, filters: currentFilters },
+        { navGroupBy, navDisplayName, filters: currentFilters, filterNames },
       ]);
 
       const newFilters = { ...currentFilters };
@@ -151,10 +153,32 @@ function App() {
         setNavGroupBy(getNextInHierarchy(navGroupBy, newFilters));
       }
 
+      setFilterNames((current) => ({
+         ...current,
+         [navGroupBy]: clickedDisplayName ?? String(key),
+      }));
       setNavDisplayName(clickedDisplayName ?? String(key));
       return newFilters;
     });
   }, [navGroupBy, navDisplayName]);
+
+
+  const calcDisplayName = useMemo(() => {
+    console.log('names', filterNames);
+    let displayName = '';
+    displayName += filterNames.category ? `${filterNames.category} ` : '';
+    if (filterNames.output_project) {
+      displayName += filterNames.category ? 'ใน' : '';
+      displayName += `${filterNames.output_project} `;
+    }
+    else if (filterNames.budget_plan) {
+      displayName += filterNames.category ? 'ใน' : '';
+      displayName += `${filterNames.budget_plan} `;
+    }
+    // displayName += filterNames.category || filterNames.budget_plan ? 'ของ' : '';
+    displayName += filterNames.budgetary_unit ? `${filterNames.budgetary_unit}` : 'งบรวมทุกหน่วยงาน';
+    return displayName;
+  }, [filterNames]);
 
   const goBack = useCallback(() => {
     setNavHistory((currentHistory) => {
@@ -162,6 +186,7 @@ function App() {
       const newHistory = [...currentHistory];
       const prev = newHistory.pop();
       setNavGroupBy(prev.navGroupBy);
+      setFilterNames(prev.filterNames);
       setNavDisplayName(prev.navDisplayName);
       setFilters(prev.filters);
       return newHistory;
@@ -175,7 +200,7 @@ function App() {
   const resetAll = useCallback(() => {
     setFilters({});
     setNavGroupBy('budgetary_unit');
-    setNavDisplayName('รวมทุกหน่วยงาน');
+    setNavDisplayName('งบรวมทุกหน่วยงาน');
     setNavHistory([]);
   }, []);
 
@@ -306,7 +331,7 @@ function App() {
             sumWindows={sumWindows}
             index={0}
             groupBy={navGroupBy}
-            displayName={navDisplayName}
+            displayName={calcDisplayName}
             canGoBack={navHistory.length > 0}
             goBack={goBack}
             navigateTo={navigateTo}
