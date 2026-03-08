@@ -5,7 +5,7 @@ const Container = styled.div`
   flex-direction: column;
   padding: 16px;
   color: white;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   flex-grow: 1;
   min-height: 0;
   overflow: hidden;

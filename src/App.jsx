@@ -201,9 +201,7 @@ function App() {
       console.log('✅ dimensions loaded', result);
       setDimensions(result);
 
-      const tmpFilter = {};
-      Object.keys(result).forEach((dim) => { tmpFilter[dim.name] = null; });
-      setFilters(tmpFilter);
+      setFilters({});
     }
     fetchData();
   }, []);
@@ -261,14 +259,14 @@ function App() {
           } else if (navigation[i].groupBy === 'budgetary_unit') {
             hasBudgetaryUnitInPath = true;
             // Don't set filterBudgetaryUnitId here; we'll handle ministry filtering below
-          } else {
+          } else if (!(navigation[i].groupBy in filters)) {
             params[`filter${groupByCamelCase}Id`] = navigation[i + 1].key;
           }
         }
       }
 
       // If there are budgetary units in the path, build filterBudgetaryUnitPath
-      if (hasBudgetaryUnitInPath && budgetaryUnitKeyStartIndex >= 0) {
+      if (hasBudgetaryUnitInPath && budgetaryUnitKeyStartIndex >= 0 && !('budgetary_unit' in filters)) {
         const budgetaryUnitIds = [];
 
         // Collect keys where the PREVIOUS entry's groupBy was 'budgetary_unit'
@@ -291,7 +289,7 @@ function App() {
       }
 
       // If there are categories in the path, build filterCategoryPath
-      if (hasCategoryInPath && categoryKeyStartIndex >= 0) {
+      if (hasCategoryInPath && categoryKeyStartIndex >= 0 && !('category' in filters)) {
         const categoryIds = [];
         // Collect keys where the PREVIOUS entry's groupBy was 'category'
         // This ensures we capture category IDs even if the current groupBy was changed later

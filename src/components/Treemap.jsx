@@ -583,19 +583,19 @@ function TreemapComponent({
     treemapPieceGroupEnter
       .append('text')
       .attr('class', 'text-name')
-      .attr('font-size', '0.75rem')
+      .attr('font-size', '0.875rem')
       .attr('fill', 'white');
 
     treemapPieceGroupEnter
       .append('text')
       .attr('class', 'text-value')
-      .attr('font-size', '0.75rem')
+      .attr('font-size', '0.875rem')
       .attr('fill', 'white');
 
     treemapPieceGroupEnter
       .append('text')
       .attr('class', 'text-growth')
-      .attr('font-size', '0.75rem')
+      .attr('font-size', '0.875rem')
       .attr('fill', 'white');
 
     const treemapPieceMerged = treemapPieceGroupEnter.merge(treemapPieceGroup);

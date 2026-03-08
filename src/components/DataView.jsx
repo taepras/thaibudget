@@ -1,5 +1,6 @@
 import React, {
   useCallback, useMemo, useState, useRef,
+  useEffect,
 } from 'react';
 import styled from 'styled-components';
 import { useHistory, useLocation } from 'react-router-dom';
@@ -10,8 +11,7 @@ import PercentageChangeList from './PercentageChangeList';
 import FullView from './FullView';
 import DropdownLink from './DropdownLink';
 import ResizableSplitView from './ResizableSplitView';
-
-const TOP_BAR_HEIGHT = 60;
+import Ui from './BasicUi';
 
 const BreadCrumbContainer = styled.div`
   display: flex;
@@ -81,6 +81,61 @@ const CreditLink = styled.a`
 
   ${ResponsiveImage} {
     max-width: 64px;
+  }
+`;
+
+const DataViewContainer = styled.div`
+  display: flex;
+  flex-grow: 1;
+  flex-direction: row;
+  overflow: hidden;
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+  }
+`;
+
+const SidebarFilter = styled.div`
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  // gap: 16px;
+  font-size: 0.875rem;
+  width: 180px;
+
+  @media (max-width: 480px) {
+    flex-direction: row;
+    width: 100%;
+    overflow-x: auto;
+  }
+`;
+
+const SidebarFilterGroupTitle = styled.h4`
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.6);  
+  margin: 0;
+
+  @media (max-width: 480px) {
+    white-space: nowrap;
+    margin-right: 8px;
+  }
+`;
+
+const SidebarFilterGroup = styled.div`
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  @media (max-width: 480px) {
+    flex-direction: row;
+    margin-left: 16px;
+    margin-bottom: 0px;
+
+    * {
+      white-space: nowrap;
+    }
   }
 `;
 
@@ -199,6 +254,18 @@ function DataView({
     () => navigation[navigation.length - 1].groupBy === 'item' || data?.isLeafLevel, [navigation, data]
   );
 
+  const computedFilters = useMemo(() => {
+    const navigationFilters = {};
+    for (let i = 0; i < navigation.length - 1; i++) {
+      navigationFilters[navigation[i].groupBy] = navigation[i + 1].key
+    }
+    const newFilters = {
+      ...navigationFilters,
+      ...filters,
+    }
+    return newFilters;
+  }, [filters, navigation])
+
   return (
     <FullView>
       {/*
@@ -281,15 +348,16 @@ function DataView({
                 {'('}
                 {(growth >= 0 ? '+' : '') + (growth * 100).toFixed(1)}
                 {`% จากปี ${compareYear})`}
-              </span>} — แบ่งตาม {' '}
+              </span>}
+              {/* {' '} — แบ่งตาม {' '}
               <DropdownLink
                 label={`${THAI_NAME[navigation[navigation.length - 1].groupBy] || navigation[navigation.length - 1].groupBy}`}
                 options={availableGroupByOptions}
                 value={navigation[navigation.length - 1].groupBy}
                 onChange={setGroupBy}
-              />
+              /> */}
             </div>
-            <div style={{ fontSize: 14, opacity: 0.6, marginTop: 8 }}>
+            {/* <div style={{ fontSize: 14, opacity: 0.6, marginTop: 8 }}>
               <BreadCrumbText>กรอง...</BreadCrumbText>
               {Object.keys(filterableDimensions ?? {}).map((key) => {
                 const options = [
@@ -314,7 +382,7 @@ function DataView({
                 }
                 return null;
               })}
-            </div>
+            </div> */}
           </div>
 
           {/* <div>
@@ -336,52 +404,107 @@ function DataView({
           </CreditLink>
         </div>
       </div>
-      <ResizableSplitView
-        mainLabel="โครงสร้างงบ"
-        sidebarLabel="รายการย่อย"
-        defaultSidebarWidth={400}
-        minSidebarWidth={240}
-        maxSidebarWidth={1000}
-        main={
-          <Treemap
-            ref={treemapRef}
-            title={navigation[navigation.length - 1].displayName}
-            data={data}
-            isLoading={isLoading}
-            filters={filters}
-            setFilters={setFilters}
-            setCurrentSum={(x) => { setCurrentSum(x); }}
-            fullValue={fullValue}
-            index={index}
-            isMultipleMaxSum={isMultipleMaxSum}
-            sumWindows={sumWindows}
-            hoveredItemName={hoveredItemName}
-            navigateTo={navigateTo}
-            isLeafLevel={isLeafLevel}
-            primaryYear={currentYear}
-            compareYear={compareYear}
-          />
-        }
-        sidebar={
-          <>
-            <div style={{ flexShrink: 0 }}>
-              <YearComparison
-                data={data}
-                currentYear={currentYear}
-                onYearClick={setCurrentYear}
-              />
-            </div>
-            <PercentageChangeList
+      <DataViewContainer>
+        <SidebarFilter>
+          <Ui.Title style={{ marginBottom: 16, whiteSpace: 'nowrap' }}>กรอง/แบ่งกลุ่ม</Ui.Title>
+          <SidebarFilterGroup>
+            <SidebarFilterGroupTitle>แบ่งตาม</SidebarFilterGroupTitle>
+            <DropdownLink
+              label={`${THAI_NAME[navigation[navigation.length - 1].groupBy] || navigation[navigation.length - 1].groupBy}`}
+              options={availableGroupByOptions}
+              value={navigation[navigation.length - 1].groupBy}
+              onChange={setGroupBy}
+            />
+          </SidebarFilterGroup>
+          <SidebarFilterGroup>
+            <SidebarFilterGroupTitle>ปีงบประมาณ</SidebarFilterGroupTitle>
+            <DropdownLink
+              label={`งบประมาณปี ${currentYear}`}
+              options={[
+                { value: 2569, label: 2569 },
+                { value: 2568, label: 2568 },
+                { value: 2567, label: 2567 },
+                { value: 2566, label: 2566 },
+                { value: 2565, label: 2565 },
+              ]}
+              value={currentYear}
+              onChange={setCurrentYear}
+            />
+          </SidebarFilterGroup>
+          <SidebarFilterGroup>
+            <SidebarFilterGroupTitle>กรอง</SidebarFilterGroupTitle>
+            {Object.keys(filterableDimensions ?? {}).map((key) => {
+              const options = [
+                ...filterableDimensions[key]?.map(k => ({ value: k.id, label: k.name })),
+                { value: null, label: 'ทั้งหมด' }
+              ].sort((a, b) => {
+                if (a?.value === null) return -1;
+                if (b?.value === null) return 1;
+                return a?.label?.localeCompare(b?.label);
+              });
+              if (options) {
+                return (
+                  <div key={`filter-control-${key}`}>
+                    <DropdownLink
+                      label={`${THAI_NAME[key] || key}: ${computedFilters?.[key] ? options.find(o => o.value === computedFilters?.[key])?.label || computedFilters?.[key] : 'ทั้งหมด'}`}
+                      options={options}
+                      value={computedFilters?.[key]}
+                      onChange={(value) => setFilters((prev) => ({ ...prev, [key]: value }))}
+                    />
+                  </div>
+                );
+              }
+              return null;
+            })}
+          </SidebarFilterGroup>
+        </SidebarFilter>
+        <ResizableSplitView
+          mainLabel="โครงสร้างงบ"
+          sidebarLabel="รายการย่อย"
+          defaultSidebarWidth={360}
+          minSidebarWidth={240}
+          maxSidebarWidth={1000}
+          main={
+            <Treemap
+              ref={treemapRef}
+              title={navigation[navigation.length - 1].displayName}
               data={data}
+              isLoading={isLoading}
+              filters={filters}
+              setFilters={setFilters}
+              setCurrentSum={(x) => { setCurrentSum(x); }}
+              fullValue={fullValue}
+              index={index}
+              isMultipleMaxSum={isMultipleMaxSum}
+              sumWindows={sumWindows}
               hoveredItemName={hoveredItemName}
-              setHoveredItemName={setHoveredItemName}
-              onItemClick={handlePercentageListClick}
+              navigateTo={navigateTo}
+              isLeafLevel={isLeafLevel}
               primaryYear={currentYear}
               compareYear={compareYear}
             />
-          </>
-        }
-      />
+          }
+          sidebar={
+            <>
+              <div style={{ flexShrink: 0 }}>
+                <YearComparison
+                  data={data}
+                  currentYear={currentYear}
+                  onYearClick={setCurrentYear}
+                />
+              </div>
+              <PercentageChangeList
+                data={data}
+                hoveredItemName={hoveredItemName}
+                setHoveredItemName={setHoveredItemName}
+                onItemClick={handlePercentageListClick}
+                primaryYear={currentYear}
+                compareYear={compareYear}
+              />
+            </>
+          }
+        />
+      </DataViewContainer>
     </FullView>
   );
 }

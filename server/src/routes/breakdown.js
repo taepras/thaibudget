@@ -581,44 +581,46 @@ export function registerBreakdownRoute(app) {
         }
       }
 
-      // For category grouping, check each category to see if it has children at the next level
-      // This helps the frontend decide whether to drill into subcategories or show items directly
+      // For category grouping, check each category to see if it has children with actual data
+      // under the current filter context (not just structural children in the schema).
       if (group === "category") {
         const categoryIds = [...rowMap.values()]
           .filter((row) => row.id !== -1 && row.id !== null)
-          .map((row) => row.id);
+          .map((row) => Number(row.id));
 
         if (categoryIds.length > 0) {
-          // Check for each category if it has any children in the category hierarchy
-          // This is independent of the current filter - we just want to know if subcategories exist
+          // Filter-aware child check: a category is non-terminal only if at least one of its
+          // direct children has fact_budget_item rows matching the current filters.
+          const childCheckParams = [...filterParamsSnapshot, categoryIds];
+          const categoryIdsParamIdx = childCheckParams.length;
           const childCheckSql = `
-            select 
-              c_check.id as category_id,
-              exists (
+            select c_child.parent_id as category_id
+            from dim_category c_child
+            where c_child.parent_id = any($${categoryIdsParamIdx})
+              and exists (
                 select 1
-                from dim_category_path cp_check
-                where cp_check.ancestor_id = c_check.id
-                  and cp_check.depth = 1
-                limit 1
-              ) as has_children
-            from dim_category c_check
-            where c_check.id = any($1)
+                from fact_budget_item f_col
+                ${filterJoinsSnapshot.join("\n                ")}
+                join dim_category_path cp_col_child on f_col.category_id = cp_col_child.descendant_id
+                where ${filterConditionsSnapshot.join(" and ")}
+                  and cp_col_child.ancestor_id = c_child.id
+              )
+            group by c_child.parent_id
           `;
 
-          const childCheckResult = await query(childCheckSql, [categoryIds]);
+          const childCheckResult = await query(childCheckSql, childCheckParams);
 
-          // Map the results to each row
-          const hasChildrenMap = new Map();
-          for (const row of childCheckResult.rows) {
-            hasChildrenMap.set(row.category_id, row.has_children);
-          }
+          // Build set of category IDs that have at least one data-bearing child
+          const hasChildrenSet = new Set(
+            childCheckResult.rows.map((r) => Number(r.category_id))
+          );
 
           // Add isTerminal flag to each category row
           for (const row of rowMap.values()) {
             if (row.id !== -1 && row.id !== null) {
-              row.isTerminal = !hasChildrenMap.get(row.id);
+              row.isTerminal = !hasChildrenSet.has(Number(row.id));
             } else if (row.id === -1) {
-              // Self-reference entries are always terminal (they represent items without subcategories)
+              // Self-reference entries are always terminal
               row.isTerminal = true;
             }
           }

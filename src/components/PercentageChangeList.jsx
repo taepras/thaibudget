@@ -198,7 +198,7 @@ function PercentageChangeList({
           <div
             style={{
               // marginBottom: '12px',
-              fontSize: 12,
+              fontSize: '0.875rem',
               position: 'relative',
               display: 'inline-block',
               opacity: 0.6,
@@ -282,7 +282,7 @@ function PercentageChangeList({
                           {item.amountCurrent.toLocaleString()} บาท
                         </div>
                         <PercentChange growth={item.growth} style={{ color: displayColor }}>
-                          {item.isNew ? `รายการใหม่` : `(${abbreviateNumber(item.diff, true)} บาท / ${signedNumber(item.growth * 100, 1)}%)`}
+                          {item.isNew ? `รายการใหม่` : `${abbreviateNumber(item.diff, true)} บาท / ${signedNumber(item.growth * 100, 1)}%`}
                         </PercentChange>
                       </ListItemDetails>
                     </ListItem>
