@@ -206,6 +206,7 @@ function DataView({
   filterableDimensions = {},
   filters = {},
   setFilters = () => {},
+  onFilterChange = () => {},
   resetAll = () => {},
 }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -435,10 +436,24 @@ function DataView({
               // On null (ทั้งหมด), delete the key entirely so nav-derived filters resume
               const handleChange = (value) => {
                 if (value === null) {
-                  setFilters((prev) => { const next = { ...prev }; delete next[key]; return next; });
-                } else {
-                  setFilters((prev) => ({ ...prev, [key]: value }));
+                  onFilterChange(key, null, null);
+                  return;
                 }
+                // Resolve a human-readable name from dimItems
+                let resolvedName = String(value);
+                const ids = String(value).split(',').map(Number);
+                const topItem = dimItems.find((d) => d.id === ids[0]);
+                if (ids.length > 1 && topItem) {
+                  const childItem = (topItem.children || []).find((c) => c.id === ids[1]);
+                  resolvedName = childItem ? childItem.name : (topItem?.name ?? resolvedName);
+                } else if (topItem) {
+                  resolvedName = topItem.name;
+                } else {
+                  // flat option (e.g. budget_plan, output_project)
+                  const flatOption = dimItems.find((d) => String(d.id) === String(value));
+                  if (flatOption) resolvedName = flatOption.name;
+                }
+                onFilterChange(key, value, resolvedName);
               };
 
               if (isHierarchical) {

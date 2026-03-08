@@ -162,6 +162,29 @@ function App() {
     });
   }, [navGroupBy, navDisplayName]);
 
+  const onFilterChange = useCallback((key, value, name) => {
+    setFilters((currentFilters) => {
+      setNavHistory((currentHistory) => [
+        ...currentHistory,
+        { navGroupBy, navDisplayName, filters: currentFilters, filterNames },
+      ]);
+      setFilterNames((currentNames) => {
+        const next = { ...currentNames };
+        if (value === null) {
+          delete next[key];
+        } else {
+          next[key] = name;
+        }
+        return next;
+      });
+      if (value === null) {
+        const next = { ...currentFilters };
+        delete next[key];
+        return next;
+      }
+      return { ...currentFilters, [key]: value };
+    });
+  }, [navGroupBy, navDisplayName, filterNames]);
 
   const calcDisplayName = useMemo(() => {
     console.log('names', filterNames);
@@ -199,6 +222,7 @@ function App() {
 
   const resetAll = useCallback(() => {
     setFilters({});
+    setFilterNames({});
     setNavGroupBy('budgetary_unit');
     setNavDisplayName('งบรวมทุกหน่วยงาน');
     setNavHistory([]);
@@ -339,6 +363,7 @@ function App() {
             filterableDimensions={dimensions}
             filters={filters}
             setFilters={setFilters}
+            onFilterChange={onFilterChange}
             resetAll={resetAll}
           />
         </div>
