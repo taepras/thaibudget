@@ -45,6 +45,80 @@ Performs a database connectivity check.
 
 ---
 
+### Search
+
+#### `GET /api/search`
+
+Full-text search across all budget dimensions. Returns results grouped by where the query matched.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `q` | string | Yes | Search query (case-insensitive substring match) |
+| `year` | integer | No | Filter by fiscal year. Repeat for multiple years (e.g. `?year=2568&year=2569`) |
+| `limit` | integer | No | Max results per group (default: 20, max: 100) |
+
+**Response (200 OK):**
+```json
+{
+  "query": "ครุภัณฑ์",
+  "years": [2569],
+  "limit": 20,
+  "groups": {
+    "budgetary_unit": {
+      "total": 2,
+      "items": [
+        {
+          "id": 42,
+          "name": "สำนักงานครุภัณฑ์ ...",
+          "level": 2,
+          "parent_id": 5,
+          "fiscal_years": [2568, 2569],
+          "total_amount": "12345678.00",
+          "item_count": "34"
+        }
+      ]
+    },
+    "budget_plan":  { "total": 0, "items": [] },
+    "output":       { "total": 0, "items": [] },
+    "project":      { "total": 3, "items": [ "..." ] },
+    "category":     { "total": 1, "items": [ "..." ] },
+    "item": {
+      "total": 15,
+      "items": [
+        {
+          "id": "จัดซื้อครุภัณฑ์ ...",
+          "name": "จัดซื้อครุภัณฑ์ ...",
+          "budgetary_unit_ids": [42, 55],
+          "budgetary_unit_names": ["กรมวิทยาศาสตร์การแพทย์", "กรมควบคุมโรค"],
+          "ministry_ids": [5],
+          "ministry_names": ["กระทรวงสาธารณสุข"],
+          "fiscal_years": [2569],
+          "total_amount": "5000000.00",
+          "item_count": "1"
+        }
+      ]
+    }
+  }
+}
+```
+
+Each group's `items` include:
+- `id` — dimension ID (or item description string for `item` group)
+- `name` — human-readable name
+- `level` / `parent_id` — hierarchy info for `budgetary_unit` and `category` groups
+- `fiscal_years` — array of fiscal years this entry appears in
+- `total_amount` — sum of budget amounts matching the search
+- `item_count` — number of matching budget line items
+
+**Response (400 Bad Request):**
+```json
+{ "error": "q (search query) is required" }
+```
+
+---
+
 ### Budget Breakdown
 
 #### `GET /api/breakdown`

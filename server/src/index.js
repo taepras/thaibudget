@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import { registerHealthRoute } from "./routes/health.js";
 import { registerDimensionsRoute } from "./routes/dimensions.js";
 import { registerBreakdownRoute } from "./routes/breakdown.js";
+import { registerSearchRoute } from "./routes/search.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,6 +19,7 @@ app.use(express.json());
 registerHealthRoute(app);
 registerDimensionsRoute(app);
 registerBreakdownRoute(app);
+registerSearchRoute(app);
 
 // Serve static files from React build directory
 const buildPath = path.join(__dirname, "../../build");

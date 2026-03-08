@@ -225,7 +225,20 @@ function App() {
       // filter by filter states
       for (const [filterName, filterValue] of Object.entries(filters)) {
         if (filterValue !== null) {
-          params[`filter${filterName.charAt(0).toUpperCase() + filterName.slice(1)}Id`] = filterValue;
+          // Convert snake_case to camelCase (e.g. budgetary_unit -> BudgetaryUnit)
+          const filterNameCamelCase = filterName
+            .split('_')
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join('');
+
+          // Use Path for budgetary_unit and category to include all descendants
+          if (filterName === 'budgetary_unit') {
+            params.filterBudgetaryUnitPath = filterValue;
+          } else if (filterName === 'category') {
+            params.filterCategoryPath = filterValue;
+          } else {
+            params[`filter${filterNameCamelCase}Id`] = filterValue;
+          }
         }
       }
 

@@ -287,7 +287,7 @@ function DataView({
                 onChange={setGroupBy}
               />
             </div>
-            {/* <div style={{ fontSize: 14, opacity: 0.6, marginTop: 8 }}>
+            <div style={{ fontSize: 14, opacity: 0.6, marginTop: 8 }}>
               <BreadCrumbText>กรอง...</BreadCrumbText>
               {Object.keys(filterableDimensions ?? {}).map((key) => {
                 const options = [
@@ -312,7 +312,7 @@ function DataView({
                 }
                 return null;
               })}
-            </div> */}
+            </div>
           </div>
 
           {/* <div>
