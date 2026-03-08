@@ -163,6 +163,26 @@ export function registerBreakdownRoute(app) {
       }
     }
 
+    // filterOutputProjectId uses the merged output_project encoding:
+    //   positive  → output_id
+    //   -1        → both output_id and project_id are null
+    //   < -1      → project_id = -(value) - 1
+    const filterOutputProjectId = parseId(req.query.filterOutputProjectId);
+    if (req.query.filterOutputProjectId && filterOutputProjectId === null) {
+      return res.status(400).json({ error: "filterOutputProjectId must be an integer" });
+    }
+    if (filterOutputProjectId !== null) {
+      if (filterOutputProjectId === -1) {
+        conditions.push("f.output_id is null and f.project_id is null");
+      } else if (filterOutputProjectId < -1) {
+        params.push(-(filterOutputProjectId) - 1);
+        conditions.push(`f.project_id = $${params.length}`);
+      } else {
+        params.push(filterOutputProjectId);
+        conditions.push(`f.output_id = $${params.length}`);
+      }
+    }
+
     const collapseCategories = req.query.collapseCategories === "false";
 
     const filterCategoryId = parseId(req.query.filterCategoryId);

@@ -168,8 +168,8 @@ function PercentageChangeList({
       if (sortMode === 'alphabet') {
         return a.name.localeCompare(b.name, 'th');
       }
-      if (a.isNew && !b.isNew) return -1;
-      if (!a.isNew && b.isNew) return 1;
+      // if (a.isNew && !b.isNew) return -1;
+      // if (!a.isNew && b.isNew) return 1;
       if (sortMode === 'diff') return b.diff - a.diff;
       if (sortMode === 'amount') return b.amountCurrent - a.amountCurrent;
       return b.growth - a.growth;

@@ -242,13 +242,17 @@ export function registerSearchRoute(app) {
             total: budgetPlanResult.rowCount,
             items: budgetPlanResult.rows,
           },
-          output: {
-            total: outputResult.rowCount,
-            items: outputResult.rows,
-          },
-          project: {
-            total: projectResult.rowCount,
-            items: projectResult.rows,
+          // output and project are merged into output_project for display.
+          // ID encoding: positive = output id, -(id+1) = project id (>= 1 → <= -2)
+          output_project: {
+            total: outputResult.rowCount + projectResult.rowCount,
+            items: [
+              ...outputResult.rows,
+              ...projectResult.rows.map((row) => ({
+                ...row,
+                id: -(row.id + 1),
+              })),
+            ],
           },
           category: {
             total: categoryResult.rowCount,

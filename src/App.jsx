@@ -90,8 +90,7 @@ const ActionButton = styled.button`
 const DEFAULT_HIERARCHY = [
   'budgetary_unit',
   'budget_plan',
-  'output',
-  'project',
+  'output_project',
   'category',
   'item'
 ];
@@ -110,7 +109,7 @@ const getNextGroupBy = (navigation, navigatingTo) => {
     if (!navigatingTo?.metadata?.isTerminal)
       return 'budgetary_unit';
   } else if (currentGroupBy === 'budget_plan') {
-    return 'output'
+    return 'output_project'
   }
 
   return DEFAULT_HIERARCHY.filter((x) => !navigation.map((n) => n.groupBy).includes(x))?.[0] ?? null;

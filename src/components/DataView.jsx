@@ -88,8 +88,10 @@ const THAI_NAME = {
   ministry: 'กระทรวงหรือเทียบเท่า',
   budgetary_unit: 'หน่วยรับงบฯ',
   budget_plan: 'แผนงาน',
-  output: 'ผลผลิต',
-  project: 'โครงการ',
+  output_project: 'ผลผลิต/โครงการ',
+  // kept for legacy data references
+  // output: 'ผลผลิต',
+  // project: 'โครงการ',
   category: 'ประเภทรายจ่าย',
   item: 'รายการ',
   obliged: 'ประเภทงบผูกพัน',
@@ -163,7 +165,7 @@ function DataView({
     // Sequential axes (budgetary_unit, output, project, item) can only be reached
     // by drilling down via tile clicks — they are never user-selectable in the dropdown.
     // Only "root" axes the user can freely choose from the dropdown:
-    const selectableOptions = ['budgetary_unit', 'budget_plan', 'category', 'obliged', 'output', 'project'];
+    const selectableOptions = ['budgetary_unit', 'budget_plan', 'category', 'obliged', 'output_project'];
 
     // Exclude any axis already locked in by a *parent* navigation level.
     // The current level's groupBy is still changeable, so we only filter out parent levels.

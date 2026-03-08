@@ -13,6 +13,7 @@ const Toggle = styled.button`
   // font-style: italic;
   transition: color 0.2s;
   text-decoration: underline;
+  text-align: left;
 
   &:hover {
     color: rgba(255, 255, 255, 0.8);

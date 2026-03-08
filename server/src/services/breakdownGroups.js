@@ -19,6 +19,12 @@ export const breakdownGroups = {
     join: "left join dim_project p on f.project_id = p.id",
     groupBy: "p.id, p.name",
   },
+  output_project: {
+    // Positive IDs = output IDs; -(id+1) for id >= 1 = project IDs; -1 = both null
+    select: "coalesce(o.id::bigint, -(p.id::bigint + 1), -1) as id, coalesce(o.name, p.name, 'ไม่ระบุผลผลิต/โครงการ') as name",
+    join: "left join dim_output o on f.output_id = o.id left join dim_project p on f.project_id = p.id",
+    groupBy: "o.id, o.name, p.id, p.name",
+  },
   category: {
     select:
       "coalesce(c.id, -1) as id, coalesce(c.name, 'ไม่ระบุประเภทรายจ่าย') as name, coalesce(c.level, 0) as level",
