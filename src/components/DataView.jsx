@@ -91,7 +91,7 @@ const DataViewContainer = styled.div`
   flex-direction: row;
   overflow: hidden;
 
-  @media (max-width: 480px) {
+  @media screen and (orientation: portrait) {
     flex-direction: column;
   }
 `;
@@ -104,7 +104,7 @@ const SidebarFilter = styled.div`
   font-size: 0.875rem;
   width: 180px;
 
-  @media (max-width: 480px) {
+  @media screen and (orientation: portrait) {
     flex-direction: row;
     width: 100%;
     overflow-x: auto;
@@ -116,7 +116,7 @@ const SidebarFilterGroupTitle = styled.h4`
   color: rgba(255, 255, 255, 0.6);  
   margin: 0;
 
-  @media (max-width: 480px) {
+  @media screen and (orientation: portrait) {
     white-space: nowrap;
     margin-right: 8px;
   }
@@ -129,7 +129,7 @@ const SidebarFilterGroup = styled.div`
   flex-direction: column;
   gap: 8px;
 
-  @media (max-width: 480px) {
+  @media screen and (orientation: portrait) {
     flex-direction: row;
     margin-left: 16px;
     margin-bottom: 0px;
