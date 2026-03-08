@@ -391,7 +391,6 @@ export function registerBreakdownRoute(app) {
         ${resolvedGroupConfig.select},
         f.fiscal_year,
         sum(f.amount) as total_amount,
-        bool_or(f.obliged) as obliged,
         (array_agg(f.obliged_data_by_source) filter (where f.obliged_data_by_source is not null))[1] as obliged_data_by_source
       from fact_budget_item f
       ${[...joins].join(" ")}
@@ -434,21 +433,17 @@ export function registerBreakdownRoute(app) {
           const {
             fiscal_year,
             total_amount,
-            obliged,
             obliged_data_by_source,
             ...groupFields
           } = processedRow;
           rowMap.set(mergeKey, {
             ...groupFields,
             amounts: {},
-            obligedByYear: {},
             obligedData: {},
           });
         }
         const entry = rowMap.get(mergeKey);
         entry.amounts[yr] = (entry.amounts[yr] || 0) + Number(row.total_amount);
-        // Store obliged flag per year
-        entry.obligedByYear[yr] = row.obliged;
         // Store obliged data breakdown per year (fiscalYear breakdown from source file)
         if (row.obliged_data_by_source) {
           entry.obligedData[yr] = row.obliged_data_by_source;

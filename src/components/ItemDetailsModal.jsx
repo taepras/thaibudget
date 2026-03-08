@@ -198,7 +198,6 @@ function ItemDetailsModal({
       growth,
       diff,
       allAmounts: item.amounts || {},
-      obligedByYear: item.obligedByYear || {},
       obligedData: item.obligedData || {},
     };
   }, [item, primaryYear, compareYear]);
@@ -316,14 +315,13 @@ function ItemDetailsModal({
           )}
 
           {/* Obliged Data */}
-          {sortedYears.some(year => detail.obligedByYear[year]) && (
+          {sortedYears.some(year => detail.obligedData[year]?.length > 0) && (
             <Section>
               <SectionTitle>ข้อมูลงบประมาณผูกพัน</SectionTitle>
               {sortedYears.map((year) => {
-                const isObliged = detail.obligedByYear[year];
                 const obligedData = detail.obligedData[year];
 
-                if (!isObliged || !obligedData || !Array.isArray(obligedData) || obligedData.length === 0) {
+                if (!obligedData || !Array.isArray(obligedData) || obligedData.length === 0) {
                   return null;
                 }
 
