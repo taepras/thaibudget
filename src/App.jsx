@@ -195,16 +195,14 @@ function App() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/dimensions`);
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/dimensions?year=${currentYear}`);
       if (!response.ok) throw new Error('API error');
       const result = await response.json();
       console.log('✅ dimensions loaded', result);
       setDimensions(result);
-
-      setFilters({});
     }
     fetchData();
-  }, []);
+  }, [currentYear]);
 
   useEffect(() => {
     console.log('🗺️ navigation updated', navigation);

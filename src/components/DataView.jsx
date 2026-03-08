@@ -10,6 +10,7 @@ import YearComparison from './YearComparison';
 import PercentageChangeList from './PercentageChangeList';
 import FullView from './FullView';
 import DropdownLink from './DropdownLink';
+import MultiTierDropdownLink from './MultiTierDropdownLink';
 import ResizableSplitView from './ResizableSplitView';
 import Ui from './BasicUi';
 
@@ -434,27 +435,50 @@ function DataView({
           <SidebarFilterGroup>
             <SidebarFilterGroupTitle>กรอง</SidebarFilterGroupTitle>
             {Object.keys(filterableDimensions ?? {}).map((key) => {
+              const dimItems = filterableDimensions[key] ?? [];
+              const isHierarchical = dimItems.some((k) => k.children?.length > 0);
+
+              // On null (ทั้งหมด), delete the key entirely so nav-derived filters resume
+              const handleChange = (value) => {
+                if (value === null) {
+                  setFilters((prev) => { const next = { ...prev }; delete next[key]; return next; });
+                } else {
+                  setFilters((prev) => ({ ...prev, [key]: value }));
+                }
+              };
+
+              if (isHierarchical) {
+                return (
+                  <div key={`filter-control-${key}`}>
+                    <MultiTierDropdownLink
+                      label={THAI_NAME[key] || key}
+                      options={dimItems}
+                      value={computedFilters?.[key] ?? null}
+                      onChange={handleChange}
+                    />
+                  </div>
+                );
+              }
+
               const options = [
-                ...filterableDimensions[key]?.map(k => ({ value: k.id, label: k.name })),
-                { value: null, label: 'ทั้งหมด' }
+                { value: null, label: 'ทั้งหมด' },
+                ...dimItems.map((k) => ({ value: k.id, label: k.name })),
               ].sort((a, b) => {
                 if (a?.value === null) return -1;
                 if (b?.value === null) return 1;
                 return a?.label?.localeCompare(b?.label);
               });
-              if (options) {
-                return (
-                  <div key={`filter-control-${key}`}>
-                    <DropdownLink
-                      label={`${THAI_NAME[key] || key}: ${computedFilters?.[key] ? options.find(o => o.value === computedFilters?.[key])?.label || computedFilters?.[key] : 'ทั้งหมด'}`}
-                      options={options}
-                      value={computedFilters?.[key]}
-                      onChange={(value) => setFilters((prev) => ({ ...prev, [key]: value }))}
-                    />
-                  </div>
-                );
-              }
-              return null;
+
+              return (
+                <div key={`filter-control-${key}`}>
+                  <DropdownLink
+                    label={`${THAI_NAME[key] || key}: ${computedFilters?.[key] ? options.find((o) => o.value === computedFilters?.[key])?.label || computedFilters?.[key] : 'ทั้งหมด'}`}
+                    options={options}
+                    value={computedFilters?.[key]}
+                    onChange={handleChange}
+                  />
+                </div>
+              );
             })}
           </SidebarFilterGroup>
         </SidebarFilter>
