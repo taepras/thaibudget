@@ -5,7 +5,7 @@ import styled from 'styled-components';
 const Toggle = styled.button`
   background: none;
   border: none;
-  color: inherit;
+  color: ${(props) => (props.isActive ? 'rgba(240, 220, 100, 1)' : 'inherit')};
   cursor: pointer;
   padding: 0;
   font-family: inherit;
@@ -37,6 +37,9 @@ const Menu = styled.div`
   padding: 8px 0;
   z-index: 9999;
   min-width: 180px;
+  max-width: min(480px, 90vw);
+  max-height: 50vh;
+  overflow-y: auto;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 `;
 
@@ -49,6 +52,8 @@ const MenuItem = styled.button`
   text-align: left;
   cursor: pointer;
   font-size: 0.75rem;
+  white-space: normal;
+  word-break: break-word;
   transition: all 0.2s;
 
   &:hover {
@@ -72,6 +77,7 @@ function DropdownLink({
   options,
   value,
   onChange,
+  isActive = false,
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
@@ -79,13 +85,27 @@ function DropdownLink({
   const menuRef = useRef(null);
 
   useEffect(() => {
-    if (showMenu && toggleRef.current) {
+    if (showMenu && toggleRef.current && menuRef.current) {
       const rect = toggleRef.current.getBoundingClientRect();
-      // position: fixed uses viewport coords — no scrollY/scrollX needed
-      setMenuPosition({
-        top: rect.bottom,
-        left: rect.left,
-      });
+      const menuH = menuRef.current.offsetHeight;
+      const menuW = menuRef.current.offsetWidth;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const MARGIN = 8;
+
+      // Prefer opening below; flip above if not enough room
+      let top = rect.bottom;
+      if (top + menuH > vh - MARGIN) {
+        top = Math.max(MARGIN, rect.top - menuH);
+      }
+
+      // Keep left edge inside viewport
+      let left = rect.left;
+      if (left + menuW > vw - MARGIN) {
+        left = Math.max(MARGIN, vw - menuW - MARGIN);
+      }
+
+      setMenuPosition({ top, left });
     }
   }, [showMenu]);
 
@@ -129,7 +149,7 @@ function DropdownLink({
 
   return (
     <Container>
-      <Toggle ref={toggleRef} onClick={() => setShowMenu(!showMenu)}>
+      <Toggle ref={toggleRef} isActive={isActive} onClick={() => setShowMenu(!showMenu)}>
         {label}
       </Toggle>
       {menu}

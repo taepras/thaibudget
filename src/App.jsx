@@ -1,5 +1,5 @@
 import React, {
-  useCallback, useEffect, useMemo, useState,
+  useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
 import * as d3 from 'd3';
 import styled from 'styled-components';
@@ -124,67 +124,89 @@ function App() {
   const [navDisplayName, setNavDisplayName] = useState('งบรวมทุกหน่วยงาน');
   const [filters, setFilters] = useState({});
   const [filterNames, setFilterNames] = useState({});
-  // Undo history: each entry = { navGroupBy, navDisplayName, filters }
+  // Undo history: each entry = { navGroupBy, navDisplayName, filters, filterNames }
   const [navHistory, setNavHistory] = useState([]);
 
+  // Refs so callbacks can read current state without being re-created on every change,
+  // and without nesting setState calls inside other setState updaters (which double-fires
+  // in React Strict Mode and corrupts history).
+  const navGroupByRef = useRef(navGroupBy);
+  const navDisplayNameRef = useRef(navDisplayName);
+  const filtersRef = useRef(filters);
+  const filterNamesRef = useRef(filterNames);
+  const navHistoryRef = useRef(navHistory);
+  navGroupByRef.current = navGroupBy;
+  navDisplayNameRef.current = navDisplayName;
+  filtersRef.current = filters;
+  filterNamesRef.current = filterNames;
+  navHistoryRef.current = navHistory;
+
   const navigateTo = useCallback((key, clickedDisplayName, metadata = {}) => {
-    setFilters((currentFilters) => {
-      setNavHistory((currentHistory) => [
-        ...currentHistory,
-        { navGroupBy, navDisplayName, filters: currentFilters, filterNames },
-      ]);
+    const currentNavGroupBy = navGroupByRef.current;
+    const currentNavDisplayName = navDisplayNameRef.current;
+    const currentFilters = filtersRef.current;
+    const currentFilterNames = filterNamesRef.current;
+    const currentNavHistory = navHistoryRef.current;
 
-      const newFilters = { ...currentFilters };
+    setNavHistory([
+      ...currentNavHistory,
+      { navGroupBy: currentNavGroupBy, navDisplayName: currentNavDisplayName, filters: currentFilters, filterNames: currentFilterNames },
+    ]);
 
-      if (navGroupBy === 'budgetary_unit') {
-        const existing = currentFilters.budgetary_unit;
-        newFilters.budgetary_unit = existing ? `${existing},${key}` : String(key);
-        setNavGroupBy(metadata.isTerminal
-          ? getNextInHierarchy('budgetary_unit', newFilters)
-          : 'budgetary_unit');
-      } else if (navGroupBy === 'category') {
-        if (Number(key) !== -1) {
-          const existing = currentFilters.category;
-          newFilters.category = existing ? `${existing},${key}` : String(key);
-        }
-        setNavGroupBy(metadata.isTerminal || Number(key) === -1 ? 'item' : 'category');
-      } else {
-        newFilters[navGroupBy] = String(key);
-        setNavGroupBy(getNextInHierarchy(navGroupBy, newFilters));
+    const newFilters = { ...currentFilters };
+    let nextGroupBy;
+
+    if (currentNavGroupBy === 'budgetary_unit') {
+      const existing = currentFilters.budgetary_unit;
+      newFilters.budgetary_unit = existing ? `${existing},${key}` : String(key);
+      nextGroupBy = metadata.isTerminal
+        ? getNextInHierarchy('budgetary_unit', newFilters)
+        : 'budgetary_unit';
+    } else if (currentNavGroupBy === 'category') {
+      if (Number(key) !== -1) {
+        const existing = currentFilters.category;
+        newFilters.category = existing ? `${existing},${key}` : String(key);
       }
+      nextGroupBy = metadata.isTerminal || Number(key) === -1 ? 'item' : 'category';
+    } else {
+      newFilters[currentNavGroupBy] = String(key);
+      nextGroupBy = getNextInHierarchy(currentNavGroupBy, newFilters);
+    }
 
-      setFilterNames((current) => ({
-         ...current,
-         [navGroupBy]: clickedDisplayName ?? String(key),
-      }));
-      setNavDisplayName(clickedDisplayName ?? String(key));
-      return newFilters;
-    });
-  }, [navGroupBy, navDisplayName]);
+    setFilters(newFilters);
+    setNavGroupBy(nextGroupBy);
+    setFilterNames({ ...currentFilterNames, [currentNavGroupBy]: clickedDisplayName ?? String(key) });
+    setNavDisplayName(clickedDisplayName ?? String(key));
+  }, []);
 
   const onFilterChange = useCallback((key, value, name) => {
-    setFilters((currentFilters) => {
-      setNavHistory((currentHistory) => [
-        ...currentHistory,
-        { navGroupBy, navDisplayName, filters: currentFilters, filterNames },
-      ]);
-      setFilterNames((currentNames) => {
-        const next = { ...currentNames };
-        if (value === null) {
-          delete next[key];
-        } else {
-          next[key] = name;
-        }
-        return next;
-      });
-      if (value === null) {
-        const next = { ...currentFilters };
-        delete next[key];
-        return next;
-      }
-      return { ...currentFilters, [key]: value };
-    });
-  }, [navGroupBy, navDisplayName, filterNames]);
+    const currentNavGroupBy = navGroupByRef.current;
+    const currentNavDisplayName = navDisplayNameRef.current;
+    const currentFilters = filtersRef.current;
+    const currentFilterNames = filterNamesRef.current;
+    const currentNavHistory = navHistoryRef.current;
+
+    setNavHistory([
+      ...currentNavHistory,
+      { navGroupBy: currentNavGroupBy, navDisplayName: currentNavDisplayName, filters: currentFilters, filterNames: currentFilterNames },
+    ]);
+
+    const newFilterNames = { ...currentFilterNames };
+    if (value === null) {
+      delete newFilterNames[key];
+    } else {
+      newFilterNames[key] = name;
+    }
+    setFilterNames(newFilterNames);
+
+    if (value === null) {
+      const next = { ...currentFilters };
+      delete next[key];
+      setFilters(next);
+    } else {
+      setFilters({ ...currentFilters, [key]: value });
+    }
+  }, []);
 
   const calcDisplayName = useMemo(() => {
     console.log('names', filterNames);
@@ -204,20 +226,63 @@ function App() {
   }, [filterNames]);
 
   const goBack = useCallback(() => {
-    setNavHistory((currentHistory) => {
-      if (currentHistory.length === 0) return currentHistory;
-      const newHistory = [...currentHistory];
-      const prev = newHistory.pop();
-      setNavGroupBy(prev.navGroupBy);
-      setFilterNames(prev.filterNames);
-      setNavDisplayName(prev.navDisplayName);
-      setFilters(prev.filters);
-      return newHistory;
-    });
+    const currentHistory = navHistoryRef.current;
+    if (currentHistory.length === 0) return;
+    const newHistory = [...currentHistory];
+    const prev = newHistory.pop();
+    setNavHistory(newHistory);
+    setNavGroupBy(prev.navGroupBy);
+    setFilterNames(prev.filterNames);
+    setNavDisplayName(prev.navDisplayName);
+    setFilters(prev.filters);
   }, []);
 
   const setGroupBy = useCallback((groupBy) => {
     setNavGroupBy(groupBy);
+  }, []);
+
+  const jumpToSearchResult = useCallback((result, dimension) => {
+    const currentNavGroupBy = navGroupByRef.current;
+    const currentNavDisplayName = navDisplayNameRef.current;
+    const currentFilters = filtersRef.current;
+    const currentFilterNames = filterNamesRef.current;
+    const currentNavHistory = navHistoryRef.current;
+
+    setNavHistory([
+      ...currentNavHistory,
+      { navGroupBy: currentNavGroupBy, navDisplayName: currentNavDisplayName, filters: currentFilters, filterNames: currentFilterNames },
+    ]);
+
+    const newFilters = {};
+    const newFilterNames = {};
+
+    if (dimension === 'budgetary_unit') {
+      const parentIds = result.parent_budgetary_unit_ids || [];
+      const parentNames = result.parent_budgetary_unit_names || [];
+      const buIds = [...parentIds, result.id];
+      newFilters.budgetary_unit = buIds.join(',');
+      newFilterNames.budgetary_unit = result.name;
+      newFilterNames.budgetary_unit_parents = parentNames;
+    } else {
+      const buIds = result.budgetary_unit_ids || [];
+      const buNames = result.budgetary_unit_names || [];
+      if (buIds.length > 0) {
+        newFilters.budgetary_unit = buIds.join(',');
+        newFilterNames.budgetary_unit = buNames[buNames.length - 1] || '';
+      }
+      if (dimension !== 'item') {
+        newFilters[dimension] = String(result.id);
+        newFilterNames[dimension] = result.name;
+      }
+    }
+
+    const nextGroupBy = dimension === 'item'
+      ? 'item'
+      : getNextInHierarchy(dimension, newFilters);
+    setNavGroupBy(nextGroupBy);
+    setNavDisplayName(result.name);
+    setFilterNames(newFilterNames);
+    setFilters(newFilters);
   }, []);
 
   const resetAll = useCallback(() => {
@@ -365,6 +430,7 @@ function App() {
             setFilters={setFilters}
             onFilterChange={onFilterChange}
             resetAll={resetAll}
+            onSearchResultClick={jumpToSearchResult}
           />
         </div>
         {isCompareView && (

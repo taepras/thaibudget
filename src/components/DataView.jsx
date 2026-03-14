@@ -13,6 +13,7 @@ import DropdownLink from './DropdownLink';
 import MultiTierDropdownLink from './MultiTierDropdownLink';
 import ResizableSplitView from './ResizableSplitView';
 import Ui from './BasicUi';
+import SearchBar from './SearchBar';
 
 const BreadCrumbContainer = styled.div`
   display: flex;
@@ -67,8 +68,8 @@ const CreditLink = styled.a`
   color: white;
   text-align: center;
   margin-left: 16px;
-  height: 48px;
-  width: 48px;
+  height: 40px;
+  width: 40px;
   opacity: 0.8;
 
   &:hover {
@@ -208,6 +209,7 @@ function DataView({
   setFilters = () => {},
   onFilterChange = () => {},
   resetAll = () => {},
+  onSearchResultClick = () => {},
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredItemName, setHoveredItemName] = useState(null);
@@ -295,6 +297,7 @@ function DataView({
       >
         <div style={{
             borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+            position: 'relative',
             display: 'flex',
             alignItems: 'start',
             width: '100%'
@@ -340,13 +343,9 @@ function DataView({
               </span>}
             </div>
           </div>
-          <CreditLink target="_blank" href="https://taepras.com">
-            <ResponsiveImage
-              src={`${process.env.PUBLIC_URL}/tp_logo_dark.svg`}
-              alt="Thanawit Prasongpongchai taepras.com"
-              title="Thanawit Prasongpongchai"
-            />
-          </CreditLink>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, paddingBottom: 16 }}>
+            <SearchBar currentYear={currentYear} onResultClick={onSearchResultClick} />
+          </div>
         </div>
       </div>
       <DataViewContainer>
@@ -363,9 +362,9 @@ function DataView({
                 onClick={goBack}
                 style={{
                   background: 'none',
-                  border: '1px solid rgba(255,255,255,0.4)',
+                  border: '1px solid rgba(240, 220, 100, 1)',
                   borderRadius: 4,
-                  color: 'rgba(255,255,255,0.7)',
+                  color: 'rgba(240, 220, 100, 1)',
                   cursor: 'pointer',
                   fontSize: '0.875rem',
                   padding: '1px 6px',
@@ -413,9 +412,9 @@ function DataView({
                   onClick={resetAll}
                   style={{
                     background: 'none',
-                    border: '1px solid rgba(255,255,255,0.4)',
+                    border: '1px solid rgba(240, 220, 100, 1)',
                     borderRadius: 4,
-                    color: 'rgba(255,255,255,0.7)',
+                    color: 'rgba(240, 220, 100, 1)',
                     cursor: 'pointer',
                     fontSize: '0.75rem',
                     padding: '1px 6px',
@@ -485,12 +484,26 @@ function DataView({
                     options={options}
                     value={computedFilters?.[key]}
                     onChange={handleChange}
+                    isActive={!!computedFilters?.[key]}
                   />
                 </div>
               );
             })}
             </FilterGroupContainer>
           </SidebarFilterGroup>
+          <HideOnMobile>
+            <CreditLink
+              target="_blank"
+              href="https://taepras.com"
+              style={{ position: 'absolute', bottom: 0, left: 0 }}
+            >
+              <ResponsiveImage
+                src={`${process.env.PUBLIC_URL}/tp_logo_dark.svg`}
+                alt="Thanawit Prasongpongchai taepras.com"
+                title="Thanawit Prasongpongchai"
+              />
+            </CreditLink>
+          </HideOnMobile>
         </SidebarFilter>
         <ResizableSplitView
           mainLabel="โครงสร้างงบ"

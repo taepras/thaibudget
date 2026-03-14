@@ -66,7 +66,8 @@ export function registerSearchRoute(app) {
             SUM(f.amount) AS total_amount,
             COUNT(DISTINCT f.id) AS item_count
           FROM dim_budgetary_unit bu
-          JOIN fact_budget_item f ON f.budgetary_unit_id = bu.id
+          JOIN dim_budgetary_unit_path bup ON bup.ancestor_id = bu.id
+          JOIN fact_budget_item f ON f.budgetary_unit_id = bup.descendant_id
           LEFT JOIN dim_budgetary_unit bu_parent ON bu.parent_id = bu_parent.id
           WHERE bu.name ILIKE $1
             ${buildYearCond(2)}

@@ -153,7 +153,7 @@ function PercentageChangeList({
       const isNew = amountPrev === 0 && amountCurrent > 0;
       const growth = amountPrev > 0
         ? (amountCurrent - amountPrev) / amountPrev
-        : (amountCurrent > 0 ? 1 : 0);
+        : (amountCurrent > 0 ? 999999999 : 0);
       return {
         name: row.name,
         id: row.id,
@@ -217,16 +217,10 @@ function PercentageChangeList({
             />
           </div>
         </div>
-        <input
+        <Ui.TextInput
           type="text"
-          placeholder="ค้นหา..."
-          style={{
-            // marginBottom: 12,
-            padding: '4px 8px',
-            fontSize: 14,
-            boxSizing: 'border-box',
-            maxWidth: '144px',
-          }}
+          placeholder="กรอง..."
+          style={{ maxWidth: '144px', width: '100%' }}
           onInput={(e) => setSearchFilter(e.target.value)}
           value={searchFilter || ''}
         />

@@ -129,9 +129,8 @@ export function registerBreakdownRoute(app) {
       if (filterBudgetPlanId === -1) {
         conditions.push("f.budget_plan_id is null");
       } else {
-        joins.add(joinMap.budget_plan);
         params.push(filterBudgetPlanId);
-        conditions.push(`bp.id = $${params.length}`);
+        conditions.push(`f.budget_plan_id = $${params.length}`);
       }
     }
 
@@ -143,9 +142,8 @@ export function registerBreakdownRoute(app) {
       if (filterOutputId === -1) {
         conditions.push("f.output_id is null");
       } else {
-        joins.add(joinMap.output);
         params.push(filterOutputId);
-        conditions.push(`o.id = $${params.length}`);
+        conditions.push(`f.output_id = $${params.length}`);
       }
     }
 
@@ -157,9 +155,8 @@ export function registerBreakdownRoute(app) {
       if (filterProjectId === -1) {
         conditions.push("f.project_id is null");
       } else {
-        joins.add(joinMap.project);
         params.push(filterProjectId);
-        conditions.push(`p.id = $${params.length}`);
+        conditions.push(`f.project_id = $${params.length}`);
       }
     }
 

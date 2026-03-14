@@ -65,6 +65,7 @@ function MultiTierDropdownLink({ label, options, value, onChange }) {
         options={tier1Options}
         value={tier1Id}
         onChange={handleTier1Change}
+        isActive={tier1Id !== null}
       />
       {tier1Id !== null && tier2Options && (
         <div style={{ marginLeft: 4, marginTop: 4 }}>
@@ -74,6 +75,7 @@ function MultiTierDropdownLink({ label, options, value, onChange }) {
             options={tier2Options}
             value={tier2Id}
             onChange={handleTier2Change}
+            isActive={tier2Id !== null}
           />
         </div>
       )}
