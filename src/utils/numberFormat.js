@@ -9,7 +9,7 @@
  * @returns {string} Abbreviated number with Thai suffix
  */
 export function abbreviateNumber(num, signed=false) {
-  if (!num || num === 0) return '0';
+  if (!num || num === 0) return '+0';
 
   const sign = num < 0 ? '-' : signed ? '+' : '';
   const absNum = Math.abs(num);
@@ -97,7 +97,7 @@ export function formatNumberWithCommas(num) {
 
 export function signedNumber(num, decimals = -1) {
   if (decimals >= 0)
-    return `${num > 0 ? '+' : ''}${num.toFixed(decimals)}`;
+    return `${num >= 0 ? '+' : ''}${num.toFixed(decimals)}`;
   else
-    return `${num > 0 ? '+' : ''}${num.toLocaleString()}`;
+    return `${num >= 0 ? '+' : ''}${num.toLocaleString()}`;
 }

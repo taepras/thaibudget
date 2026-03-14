@@ -90,9 +90,9 @@ const ActionButton = styled.button`
 
 const DEFAULT_HIERARCHY = [
   'budgetary_unit',
-  'budget_plan',
+  // 'budget_plan',
   'output_project',
-  'category',
+  // 'category',
   'item'
 ];
 
