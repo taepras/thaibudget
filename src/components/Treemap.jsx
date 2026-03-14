@@ -118,66 +118,73 @@ function TailOverlay({
     );
 
     const svg = d3.select(svgRef.current).select('g.sub-chart');
-    const pieces = svg.selectAll('g.sub-piece').data(leaves, (d) => d?.data?.value?.id ?? d?.data?.key);
 
-    const enter = pieces.enter().append('g').attr('class', 'sub-piece')
-      .attr('clip-path', (d) => `url(#subclip-${d?.data?.value?.id ?? d?.data?.key?.replaceAll(/[ ()]/g, '')})`)
-      .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
-      .style('cursor', isLeafLevel ? 'default' : 'pointer')
-      .on('mouseenter', (e, d) => {
-        d3.select(e.currentTarget)
-          .select('rect.box')
-          .style('filter', 'drop-shadow(0 0 3px rgba(255,255,255,0.8))');
+    const merged = svg.selectAll('g.sub-piece')
+      .data(leaves, (d) => `gsg-${d?.data?.key?.replaceAll(/[ ()]/g, '')}`)
+      // .data(leaves, (d) => d?.data?.value?.id ?? d?.data?.key)
+      .join(
+        (enter) => {
+          const g = enter.append('g').attr('class', 'sub-piece')
+            .attr('clip-path', (d) => `url(#subclip-${d?.data?.value?.id ?? d?.data?.key?.replaceAll(/[ ()]/g, '')})`)
+            .attr('transform', (d) => `translate(${d.x0},${d.y0})`)
+            .style('cursor', isLeafLevel ? 'default' : 'pointer')
+            .on('mouseenter', (e, d) => {
+              d3.select(e.currentTarget)
+                .select('rect.box')
+                .style('filter', 'drop-shadow(0 0 3px rgba(255,255,255,0.8))');
 
-        const tip = `${d?.data?.key}<br>${abbreviateNumber(d?.value)}<br>เติบโต: ${d?.GROWTH != null ? `${(d.GROWTH * 100).toFixed(1)}%` : 'N/A'}`;
-        e.currentTarget.setAttribute('data-html', 'true');
-        e.currentTarget.setAttribute('data-tip', tip);
-        ReactTooltip.show(e.currentTarget);
-      })
-      .on('mouseleave', (e) => {
-        d3.select(e.currentTarget)
-          .select('rect.box')
-          .style('filter', null);
-        ReactTooltip.hide(e.currentTarget);
-      })
-      .on('click', (e, d) => {
-        e.stopPropagation();
-        if (d?.data?.value?.isTailBucket) {
-          onLoadMore();
-          return;
-        }
-        if (isLeafLevel) {
-          // Show modal for item details at leaf level
-          const itemKey = d?.data?.key;
-          const itemId = d?.data?.value?.id;
-          const itemData = dataRows.find((row) => row.name === itemKey && row.id === itemId);
-          if (itemData && onItemClick) {
-            onItemClick(itemData);
-          }
-          return;
-        }
-        if (!isLeafLevel && d?.data?.value?.id != null) {
-          navigateTo(d.data.value.id, d.data.key, { isTerminal: d.data.value.isTerminal });
-          onClose();
-        }
-      });
+              const tip = `${d?.data?.key}<br>${abbreviateNumber(d?.value)}<br>เติบโต: ${d?.GROWTH != null ? `${(d.GROWTH * 100).toFixed(1)}%` : 'N/A'}`;
+              e.currentTarget.setAttribute('data-html', 'true');
+              e.currentTarget.setAttribute('data-tip', tip);
+              ReactTooltip.show(e.currentTarget);
+            })
+            .on('mouseleave', (e) => {
+              d3.select(e.currentTarget)
+                .select('rect.box')
+                .style('filter', null);
+              ReactTooltip.hide(e.currentTarget);
+            })
+            .on('click', (e, d) => {
+              e.stopPropagation();
+              if (d?.data?.value?.isTailBucket) {
+                onLoadMore();
+                return;
+              }
+              if (isLeafLevel) {
+                const itemKey = d?.data?.key;
+                const itemId = d?.data?.value?.id;
+                const itemData = dataRows.find((row) => row.name === itemKey && row.id === itemId);
+                if (itemData && onItemClick) {
+                  onItemClick(itemData);
+                }
+                return;
+              }
+              if (!isLeafLevel && d?.data?.value?.id != null) {
+                navigateTo(d.data.value.id, d.data.key, { isTerminal: d.data.value.isTerminal });
+                onClose();
+              }
+            });
 
-    enter.append('clipPath')
-      .attr('id', (d) => `subclip-${d?.data?.value?.id ?? d?.data?.key?.replaceAll(/[ ()]/g, '')}`)
-      .append('rect').attr('rx', 2)
-      .attr('width', (d) => d.x1 - d.x0)
-      .attr('height', (d) => d.y1 - d.y0);
+          g.append('clipPath')
+            .attr('id', (d) => `subclip-${d?.data?.value?.id ?? d?.data?.key?.replaceAll(/[ ()]/g, '')}`)
+            .append('rect').attr('rx', 2)
+            .attr('width', (d) => d.x1 - d.x0)
+            .attr('height', (d) => d.y1 - d.y0);
 
-    enter.append('rect').attr('class', 'box').attr('rx', 2)
-      .style('fill', (d) => getColor(d))
-      .attr('stroke', 'black').attr('stroke-width', gutter)
-      .attr('width', (d) => Math.max(d.x1 - d.x0, 0))
-      .attr('height', (d) => Math.max(d.y1 - d.y0, 0));
+          g.append('rect').attr('class', 'box').attr('rx', 2)
+            .style('fill', (d) => getColor(d))
+            .attr('stroke', 'black').attr('stroke-width', gutter)
+            .attr('width', (d) => Math.max(d.x1 - d.x0, 0))
+            .attr('height', (d) => Math.max(d.y1 - d.y0, 0));
 
-    enter.append('text').attr('class', 'label').attr('fill', 'white').attr('font-size', '11px')
-      .attr('x', 4).attr('y', 7).attr('dominant-baseline', 'hanging');
+          g.append('text').attr('class', 'label').attr('fill', 'white').attr('font-size', '11px')
+            .attr('x', 4).attr('y', 7).attr('dominant-baseline', 'hanging');
 
-    const merged = enter.merge(pieces);
+          return g;
+        },
+        (update) => update,
+        (exit) => exit.remove(),
+      );
 
     merged.attr('transform', (d) => `translate(${d.x0},${d.y0})`);
     merged.select('clipPath rect')
@@ -189,8 +196,6 @@ function TailOverlay({
       .attr('height', (d) => Math.max(d.y1 - d.y0, 0));
     merged.select('text.label')
       .text((d) => (d.x1 - d.x0 > 40 && d.y1 - d.y0 > 14) ? d?.data?.key : '');
-
-    pieces.exit().remove();
       setIsRendering(false);
     }); // end rAF
     // eslint-disable-next-line consistent-return
@@ -519,6 +524,7 @@ function TreemapComponent({
     const treeW = fullVal <= 0 ? width - 2 * padding : treeCurrentArea / treeH;
 
     const treemap = d3.treemap()
+      // .tile(d3.treemapResquarify)
       .size([treeW, treeH])
       .padding(0);
     // .round(true);
@@ -551,54 +557,59 @@ function TreemapComponent({
     // Clear g.chart (or g.chart-next if navigating) before rendering new tiles
     renderChart.selectAll('*').remove();
 
-    const treemapPieceGroup = renderChart
+    const treemapPieceMerged = renderChart
       .selectAll('g.treemap-piece')
-      .data(visibleLeaves, (d) => `${data.name}-${d?.data?.value?.id ?? d?.data?.key}`);
+      .data(visibleLeaves, (d) => `g-${d?.data?.key?.replaceAll(/[ ()]/g, '')}`)
+      // .data(visibleLeaves, (d) => `${data.name}-${d?.data?.value?.id ?? d?.data?.key}`)
+      .join(
+        (enter) => {
+          const g = enter
+            .append('g')
+            .attr('class', 'treemap-piece')
+            .attr('id', (d) => `${d?.data?.key?.replaceAll(/[ ()]/g, '')}`)
+            .attr('clip-path', (d) => `url(#clip-${d?.data?.key?.replaceAll(/[ ()]/g, '')})`)
+            .attr('transform', (d) => `translate(${d.x0 || 0},${d.y0 || 0})`)
+            .style('cursor', isLeafLevel ? 'default' : 'pointer');
 
-    const treemapPieceGroupEnter = treemapPieceGroup
-      .enter()
-      .append('g')
-      .attr('class', 'treemap-piece')
-      .attr('id', (d) => `${d?.data?.key?.replaceAll(/[ ()]/g, '')}`)
-      .attr('clip-path', (d) => `url(#clip-${d?.data?.key?.replaceAll(/[ ()]/g, '')})`)
-      .attr('transform', (d) => `translate(${d.x0 || 0},${d.y0 || 0})`)
-      .style('cursor', isLeafLevel ? 'default' : 'pointer');
+          g.append('rect')
+            .attr('class', 'box')
+            .attr('rx', 3)
+            .style('fill', (d) => getNodeColor(d))
+            .attr('width', (d) => (d.x1 - d.x0) || 0)
+            .attr('height', (d) => (d.y1 - d.y0) || 0);
 
-    treemapPieceGroupEnter
-      .append('rect')
-      .attr('class', 'box')
-      .attr('rx', 3)
-      .style('fill', (d) => getNodeColor(d))
-      .attr('width', (d) => (d.x1 - d.x0) || 0)
-      .attr('height', (d) => (d.y1 - d.y0) || 0);
+          g.append('clipPath')
+            .attr('id', (d) => `clip-${d?.data?.key?.replaceAll(/[ ()]/g, '')}`)
+            .append('rect')
+            .attr('rx', 3)
+            .attr('width', (d) => (d.x1 - d.x0) || 0)
+            .attr('height', (d) => (d.y1 - d.y0) || 0);
 
-    treemapPieceGroupEnter
-      .append('clipPath')
-      .attr('id', (d) => `clip-${d?.data?.key?.replaceAll(/[ ()]/g, '')}`)
-      .append('rect')
-      .attr('rx', 3)
-      .attr('width', (d) => (d.x1 - d.x0) || 0)
-      .attr('height', (d) => (d.y1 - d.y0) || 0);
+          g.append('text')
+            .attr('class', 'text-name')
+            .attr('font-size', '0.875rem')
+            .attr('fill', 'white');
 
-    treemapPieceGroupEnter
-      .append('text')
-      .attr('class', 'text-name')
-      .attr('font-size', '0.875rem')
-      .attr('fill', 'white');
+          g.append('text')
+            .attr('class', 'text-value')
+            .attr('font-size', '0.875rem')
+            .attr('fill', 'white');
 
-    treemapPieceGroupEnter
-      .append('text')
-      .attr('class', 'text-value')
-      .attr('font-size', '0.875rem')
-      .attr('fill', 'white');
+          g.append('text')
+            .attr('class', 'text-growth')
+            .attr('font-size', '0.875rem')
+            .attr('fill', 'white');
 
-    treemapPieceGroupEnter
-      .append('text')
-      .attr('class', 'text-growth')
-      .attr('font-size', '0.875rem')
-      .attr('fill', 'white');
-
-    const treemapPieceMerged = treemapPieceGroupEnter.merge(treemapPieceGroup);
+          return g;
+        },
+        (update) => update,
+        (exit) => exit
+          .transition()
+          .delay(transitionDuration)
+          .duration(600)
+          .attr('opacity', 0)
+          .remove(),
+      );
 
     treemapPieceMerged
       .on('mouseenter', (e, d) => {
@@ -769,13 +780,6 @@ function TreemapComponent({
         return itemGrowth != null ? `${itemGrowth >= 0 ? '+' : ''}${(itemGrowth * 100).toFixed(1)}%` : '';
       })
       .attr('fill', (d) => (d?.GROWTH > 0 ? '#4f4' : d?.GROWTH < 0 ? '#f44' : 'white'));
-
-    treemapPieceGroup.exit()
-      .transition()
-      .delay(transitionDuration)
-      .duration(600)
-      .attr('opacity', 0)
-      .remove();
 
     if (isNavigatingRef.current) {
       const { dx, dy, sx, sy } = zoomStateRef.current;

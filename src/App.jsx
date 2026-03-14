@@ -297,14 +297,20 @@ function App() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/dimensions?year=${currentYear}`);
+      const url = new URL(`${process.env.REACT_APP_API_URL}/api/dimensions`);
+      url.searchParams.set('year', currentYear);
+      if (filters.budgetary_unit)  url.searchParams.set('filterBudgetaryUnitPath', filters.budgetary_unit);
+      if (filters.budget_plan != null) url.searchParams.set('filterBudgetPlanId', filters.budget_plan);
+      if (filters.output_project != null) url.searchParams.set('filterOutputProjectId', filters.output_project);
+      if (filters.category)        url.searchParams.set('filterCategoryPath', filters.category);
+      const response = await fetch(url);
       if (!response.ok) throw new Error('API error');
       const result = await response.json();
       console.log('✅ dimensions loaded', result);
       setDimensions(result);
     }
     fetchData();
-  }, [currentYear]);
+  }, [currentYear, filters]);
 
   useEffect(() => {
     console.log('🗺️ view state updated', { navGroupBy, filters });
