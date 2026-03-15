@@ -175,6 +175,19 @@ function DataView({
   const [hoveredItemName, setHoveredItemName] = useState(null);
   const treemapRef = useRef(null);
 
+  // Only show the loading overlay after 200ms to avoid flickering for fast/cached responses
+  const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
+  const overlayTimerRef = useRef(null);
+  useEffect(() => {
+    if (isLoading) {
+      overlayTimerRef.current = setTimeout(() => setShowLoadingOverlay(true), 200);
+    } else {
+      clearTimeout(overlayTimerRef.current);
+      setShowLoadingOverlay(false);
+    }
+    return () => clearTimeout(overlayTimerRef.current);
+  }, [isLoading]);
+
   const filterDataByQuery = useCallback((datum, query) => {
     const searchLevels = [
       'MINISTRY',
@@ -466,11 +479,11 @@ function DataView({
           </HideOnMobile>
         </SidebarFilter>
         <div style={{ position: 'relative', flexGrow: 1, overflow: 'hidden', display: 'flex' }}>
-          {isLoading && (
+          {showLoadingOverlay && (
             <div style={{
               position: 'absolute',
               inset: 0,
-              backgroundColor: 'rgba(0, 0, 0, 0.30)',
+              backgroundColor: 'rgba(0, 0, 0, 0.20)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',

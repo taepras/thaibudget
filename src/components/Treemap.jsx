@@ -381,14 +381,23 @@ function TreemapComponent({
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const dataRowsRef = useRef([]);
+  // Set to true just before navigating from a zoom-click so the render effect
+  // can crossfade the new chart over the frozen zoomed state.
+  const isFromZoomRef = useRef(false);
+  // While true, mouseenter effects (drop-shadow, tooltip) and stroke highlights are
+  // suppressed. Cleared on the first mousemove after the crossfade has fully settled.
+  const suppressHoverRef = useRef(false);
 
   useEffect(() => {
-    // Zoom is always complete before navigate is called, so chart transform is
-    // already reset. This just ensures a clean state for the new data render.
-    if (svgRef.current) {
+    // When navigating via a zoom-click, leave g.chart frozen at its zoomed scale —
+    // the render effect will crossfade the new chart in and then clean up.
+    // For all other data changes (initial load, filter, year change) reset immediately.
+    if (svgRef.current && !isFromZoomRef.current) {
       d3.select(svgRef.current).select('g.chart')
+        .interrupt()
         .attr('transform', 'translate(0,0) scale(1,1)')
-        .style('opacity', 1);
+        .style('opacity', 1)
+        .style('pointer-events', null);
     }
     setOverlayOpen(false);
     setOverlayCount(BATCH_SIZE);
@@ -397,6 +406,7 @@ function TreemapComponent({
   useEffect(() => {
     // update stroke
     if (!svgRef.current || isLeafLevel) return;
+    if (suppressHoverRef.current) return;
 
     d3.select(svgRef.current)
       .selectAll('g.treemap-piece')
@@ -486,11 +496,23 @@ function TreemapComponent({
       (d) => (d.x1 - d.x0) >= MIN_TILE_PX && (d.y1 - d.y0) >= MIN_TILE_PX,
     );
 
-    const currentChart = d3.select(svgRef.current).select('g.chart');
-    const renderChart = currentChart;
+    const isCrossFade = isFromZoomRef.current;
+    isFromZoomRef.current = false;
 
-    // Clear before rendering new tiles
+    const currentChart = d3.select(svgRef.current).select('g.chart');
+    const renderChart = isCrossFade
+      ? d3.select(svgRef.current).select('g.chart-next')
+      : currentChart;
+
     renderChart.selectAll('*').remove();
+    if (isCrossFade) {
+      // New tiles start invisible on top; old zoomed chart is kept as background
+      renderChart
+        .attr('transform', 'translate(0,0) scale(1,1)')
+        .style('opacity', 0)
+        .style('pointer-events', 'none');
+      currentChart.style('pointer-events', 'none');
+    }
 
     const treemapPieceMerged = renderChart
       .selectAll('g.treemap-piece')
@@ -548,6 +570,7 @@ function TreemapComponent({
 
     treemapPieceMerged
       .on('mouseenter', (e, d) => {
+        if (suppressHoverRef.current) return;
         if (!isLeafLevelRef.current) {
           d3.select(e.currentTarget)
             .select('rect.box')
@@ -589,6 +612,12 @@ function TreemapComponent({
           }
           return;
         }
+
+        // Immediately clear hover visuals and suppress further hover until
+        // the mouse moves again after the new chart has fully faded in.
+        suppressHoverRef.current = true;
+        d3.select(e.currentTarget).select('rect.box').style('filter', null);
+        ReactTooltip.hide(e.currentTarget);
         // Current tile dimensions (before zoom)
         const oldTileWidth = d.x1 - d.x0 - gutter;
         const oldTileHeight = d.y1 - d.y0 - gutter;
@@ -609,6 +638,7 @@ function TreemapComponent({
           .attr('transform', `translate(${-dx * sx},${-dy * sy}) scale(${sx},${sy})`)
           .on('end', () => {
             if (!d?.data?.value?.isTailBucket) {
+              isFromZoomRef.current = true;
               navigateToRef.current(d?.data?.value?.id, d?.data?.key, { isTerminal: d?.data?.value?.isTerminal });
             }
           });
@@ -666,6 +696,37 @@ function TreemapComponent({
         return itemGrowth != null ? `${itemGrowth >= 0 ? '+' : ''}${(itemGrowth * 100).toFixed(1)}%` : '';
       })
       .attr('fill', (d) => (d?.GROWTH > 0 ? '#4f4' : d?.GROWTH < 0 ? '#f44' : 'white'));
+
+    if (isCrossFade) {
+      // Fade in new chart, then fade out old zoomed chart, then swap children into g.chart
+      renderChart.transition().duration(250)
+        .style('opacity', 1)
+        .on('end', () => {
+          currentChart.transition().duration(200)
+            .style('opacity', 0)
+            .on('end', () => {
+              const chartNode = currentChart.node();
+              renderChart.selectChildren().nodes().forEach((child) => chartNode.appendChild(child));
+              currentChart
+                .interrupt()
+                .attr('transform', 'translate(0,0) scale(1,1)')
+                .style('opacity', 1)
+                .style('pointer-events', null);
+              renderChart
+                .style('opacity', 1)
+                .style('pointer-events', 'none');
+              // Lift suppression on the first mouse move inside the chart
+              const svgEl = svgRef.current;
+              if (svgEl) {
+                const onMove = () => {
+                  suppressHoverRef.current = false;
+                  svgEl.removeEventListener('mousemove', onMove);
+                };
+                svgEl.addEventListener('mousemove', onMove, { once: true });
+              }
+            });
+        });
+    }
     };
 
     const raf = requestAnimationFrame(performRender);
