@@ -6,7 +6,7 @@ import * as d3 from 'd3';
 import useDimensions from 'react-cool-dimensions';
 import ReactTooltip from 'react-tooltip';
 
-import { abbreviateNumber, signedNumber } from '../utils/numberFormat';
+import { abbreviateGrowthRate, abbreviateNumber, signedNumber } from '../utils/numberFormat';
 import FullView from './FullView';
 import Spinner from './Spinner';
 import Ui from './BasicUi';
@@ -171,6 +171,8 @@ function TailOverlay({
 
           return g;
         },
+        (update) => update,
+        (exit) => exit.remove()
       );
 
     merged.attr('transform', (d) => `translate(${d.x0},${d.y0})`);
@@ -553,7 +555,7 @@ function TreemapComponent({
         const nodeGrowth = d?.GROWTH ?? 0;
         const lastYear = d?.AMOUNT_LASTYEAR;
         const growthText = nodeGrowth != null
-          ? `<span style="color:${nodeGrowth > 0 ? '#25d925' : '#f11919'}">${signedNumber(nodeGrowth * 100, 1)}%</span>`
+          ? `<span style="color:${nodeGrowth > 0 ? '#25d925' : '#f11919'}">${abbreviateGrowthRate(nodeGrowth)}</span>`
           : 'N/A';
         const lastYearText = lastYear != null ? abbreviateNumber(lastYear) : 'N/A';
         const tip = [
@@ -665,8 +667,7 @@ function TreemapComponent({
       .attr('opacity', 1)
       .text((d) => {
         if (d.x1 - d.x0 <= 40 || d.y1 - d.y0 <= 44) return '';
-        const itemGrowth = d?.GROWTH;
-        return itemGrowth != null ? `${itemGrowth >= 0 ? '+' : ''}${(itemGrowth * 100).toFixed(1)}%` : '';
+        return abbreviateGrowthRate(d?.GROWTH);
       })
       .attr('fill', (d) => (d?.GROWTH > 0 ? '#4f4' : d?.GROWTH < 0 ? '#f44' : 'white'));
 
@@ -679,6 +680,7 @@ function TreemapComponent({
             .style('opacity', 0)
             .on('end', () => {
               const chartNode = currentChart.node();
+              currentChart.selectAll('*').remove();
               renderChart.selectChildren().nodes().forEach((child) => chartNode.appendChild(child));
               currentChart
                 .interrupt()
