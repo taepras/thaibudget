@@ -487,7 +487,6 @@ function TreemapComponent({
       padding,
       gutter,
       // getNodeColor,
-      hoveredItemName,
     });
     if (!svgRef.current) return;
 
@@ -817,7 +816,9 @@ function TreemapComponent({
     padding,
     gutter,
     getNodeColor,
-    hoveredItemName,
+    // hoveredItemName is intentionally omitted: stroke highlighting is handled by
+    // the dedicated lightweight effect above, which uses D3 selections directly.
+    // The main render reads hoveredItemNameRef.current internally.
     isLeafLevel,
     compareYear,
     primaryYear,

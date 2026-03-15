@@ -16,10 +16,35 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// In-memory GET cache for all /api/* routes.
+// Budget data is static at runtime so cached entries never expire.
+const apiCache = new Map();
+app.use('/api', (req, res, next) => {
+  if (req.method !== 'GET') return next();
+  const key = req.originalUrl;
+  if (apiCache.has(key)) {
+    res.setHeader('X-Cache', 'HIT');
+    return res.json(apiCache.get(key));
+  }
+  const originalJson = res.json.bind(res);
+  res.json = (body) => {
+    if (res.statusCode === 200) apiCache.set(key, body);
+    return originalJson(body);
+  };
+  next();
+});
+
 registerHealthRoute(app);
 registerDimensionsRoute(app);
 registerBreakdownRoute(app);
 registerSearchRoute(app);
+
+app.post('/api/cache/clear', (req, res) => {
+  const size = apiCache.size;
+  apiCache.clear();
+  console.log(`Cache cleared (${size} entries)`);
+  res.json({ cleared: size });
+});
 
 // Serve static files from React build directory
 const buildPath = path.join(__dirname, "../../build");

@@ -5,11 +5,9 @@ import * as d3 from 'd3';
 import styled from 'styled-components';
 import { useHistory, useLocation } from 'react-router-dom';
 import ReactTooltip from 'react-tooltip';
-import logo from './logo.svg';
 import './App.css';
 import DataView from './components/DataView';
 import FullView from './components/FullView';
-import { set } from 'd3-collection';
 
 const PageContainer = styled.div`
  display: flex;
@@ -19,73 +17,6 @@ const PageContainer = styled.div`
   @media screen and (orientation:portrait) {
     flex-direction: column;
   }
-`;
-
-const ResponsiveImage = styled.img`
-  width: 100%;
-`;
-
-const CreditLink = styled.a`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-decoration: none;
-  color: white;
-  text-align: center;
-
-  &:hover {
-    opacity: 0.6;
-  }
-
-  small {
-    margin-bottom: 4px;
-    opacity: 0.4;
-  }
-
-  ${ResponsiveImage} {
-    max-width: 64px;
-  }
-`;
-
-const Sidebar = styled.div`
-  position: relative;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  
-  @media screen and (orientation:landscape) {
-    width: 80px;
-    &>*:not(:last-child) {
-      margin-bottom: 16px;
-    }
-  }
-
-  @media screen and (orientation:portrait) {
-    height: 64px;
-    flex-direction: row;
-    /* display: none !important; */
-
-    &>*:not(:last-child) {
-      margin-right: 16px;
-    }
-
-    ${CreditLink} ${ResponsiveImage} {
-      max-width: 48px;
-    }
-  }
-`;
-
-const ActionButton = styled.button`
-  padding: 8px;
-  background-color: #181818;
-  border: none;
-  color: #888;
-  border-radius: 8px;
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
 `;
 
 const DEFAULT_HIERARCHY = [
@@ -295,6 +226,11 @@ function App() {
 
   const [dimensions, setDimensions] = useState({});
 
+  // In-memory cache keyed by full URL string. Cached results are used immediately
+  // so navigating back/forward feels instant.
+  const breakdownCacheRef = useRef({});
+  const dimensionsCacheRef = useRef({});
+
   useEffect(() => {
     const fetchData = async () => {
       const url = new URL(`${process.env.REACT_APP_API_URL}/api/dimensions`);
@@ -303,9 +239,15 @@ function App() {
       if (filters.budget_plan != null) url.searchParams.set('filterBudgetPlanId', filters.budget_plan);
       if (filters.output_project != null) url.searchParams.set('filterOutputProjectId', filters.output_project);
       if (filters.category)        url.searchParams.set('filterCategoryPath', filters.category);
+      const cacheKey = url.href;
+      if (dimensionsCacheRef.current[cacheKey]) {
+        setDimensions(dimensionsCacheRef.current[cacheKey]);
+        return;
+      }
       const response = await fetch(url);
       if (!response.ok) throw new Error('API error');
       const result = await response.json();
+      dimensionsCacheRef.current[cacheKey] = result;
       console.log('✅ dimensions loaded', result);
       setDimensions(result);
     }
@@ -357,9 +299,17 @@ function App() {
 
       console.log('🔍 fetching data', url.href);
 
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('API error');
-      const result = await response.json();
+      const cacheKey = url.href;
+      let result;
+      if (breakdownCacheRef.current[cacheKey]) {
+        console.log('⚡ cache hit', cacheKey);
+        result = breakdownCacheRef.current[cacheKey];
+      } else {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('API error');
+        result = await response.json();
+        breakdownCacheRef.current[cacheKey] = result;
+      }
 
       // Discard result if this effect was superseded by a newer navigation/year change
       if (cancelled) return;
