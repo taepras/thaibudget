@@ -470,7 +470,7 @@ function DataView({
             <div style={{
               position: 'absolute',
               inset: 0,
-              backgroundColor: 'rgba(0, 0, 0, 0.55)',
+              backgroundColor: 'rgba(0, 0, 0, 0.30)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',

@@ -289,26 +289,15 @@ function TreemapComponent({
   useEffect(() => { isLeafLevelRef.current = isLeafLevel; }, [isLeafLevel]);
   const hoveredItemNameRef = useRef(hoveredItemName);
   useEffect(() => { hoveredItemNameRef.current = hoveredItemName; }, [hoveredItemName]);
-  const isNavigatingRef = useRef(false);
   const nestedDataRef = useRef(null);
 
   useImperativeHandle(ref, () => ({
     triggerItemClick: (itemName) => {
       if (isLeafLevelRef.current) return;
-
-      // Find the item in the data and navigate directly
-      const data = nestedDataRef.current;
-      if (!data?.values) return;
-
-      for (const item of data.values) {
+      const currentData = nestedDataRef.current;
+      if (!currentData?.values) return;
+      for (const item of currentData.values) {
         if (item.key === itemName) {
-          isNavigatingRef.current = true;
-          const navLoadTimer = setTimeout(() => {
-            if (isNavigatingRef.current) {
-              // setIsNavLoading(true); // Would need to pass this in
-            }
-          }, 300);
-          // Navigate to this item
           navigateToRef.current(item.value.id, item.key, { isTerminal: item.value.isTerminal });
           return;
         }
@@ -391,43 +380,18 @@ function TreemapComponent({
   const [overlayCount, setOverlayCount] = useState(BATCH_SIZE);
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
-  const [isNavLoading, setIsNavLoading] = useState(false);
-  const navLoadTimerRef = useRef(null);
-  const zoomStateRef = useRef({ dx: 0, dy: 0, sx: 1, sy: 1 });
-  const zoomTileRef = useRef(null);
-  const isNavigationRenderRef = useRef(false);
   const dataRowsRef = useRef([]);
 
   useEffect(() => {
-    // on new data change
-    isNavigationRenderRef.current = false;
-
+    // Zoom is always complete before navigate is called, so chart transform is
+    // already reset. This just ensures a clean state for the new data render.
     if (svgRef.current) {
-      const chart = d3.select(svgRef.current).select('g.chart');
-      const chartNext = d3.select(svgRef.current).select('g.chart-next');
-
-      // Cancel any running transitions (zoom / fade from navigation click).
-      // Without this, the zoom on('end') callback would remove newly-rendered
-      // children from g.chart, leaving a black screen.
-      chart.interrupt();
-      chart.attr('transform', 'translate(0,0) scale(1,1)');
-      chart.style('opacity', 1);
-
-      chartNext.interrupt();
-      chartNext.selectAll('*').remove();
-      chartNext.attr('transform', 'translate(0,0) scale(1,1)');
+      d3.select(svgRef.current).select('g.chart')
+        .attr('transform', 'translate(0,0) scale(1,1)')
+        .style('opacity', 1);
     }
-
     setOverlayOpen(false);
     setOverlayCount(BATCH_SIZE);
-
-    // Clear navigation loading state when new data arrives
-    if (navLoadTimerRef.current) {
-      clearTimeout(navLoadTimerRef.current);
-      navLoadTimerRef.current = null;
-    }
-    setIsNavLoading(false);
-    isNavigatingRef.current = false;
   }, [data]);
 
   useEffect(() => {
@@ -478,8 +442,6 @@ function TreemapComponent({
     });
     if (!svgRef.current) return;
 
-    // Skip rAF during navigation - render immediately since spinner is already shown
-    const renderNow = isNavigatingRef.current;
     const performRender = () => {
       const svgHeight = svgRef.current.clientHeight;
 
@@ -524,24 +486,10 @@ function TreemapComponent({
       (d) => (d.x1 - d.x0) >= MIN_TILE_PX && (d.y1 - d.y0) >= MIN_TILE_PX,
     );
 
-    // Always render into g.chart
     const currentChart = d3.select(svgRef.current).select('g.chart');
+    const renderChart = currentChart;
 
-    // When navigating, render into g.chart-next instead
-    const targetChart = isNavigatingRef.current ? 'g.chart-next' : 'g.chart';
-    const renderChart = d3.select(svgRef.current).select(targetChart);
-
-    if (isNavigatingRef.current) {
-      const { sx, sy } = zoomStateRef.current;
-      renderChart.attr('transform', `translate(${gutter / 2}, ${gutter / 2}) scale(${1 / sx},${1 / sy})`);
-    }
-
-    // Mark that we're rendering the new chart
-    if (isNavigatingRef.current) {
-      isNavigationRenderRef.current = true;
-    }
-
-    // Clear g.chart (or g.chart-next if navigating) before rendering new tiles
+    // Clear before rendering new tiles
     renderChart.selectAll('*').remove();
 
     const treemapPieceMerged = renderChart
@@ -647,70 +595,27 @@ function TreemapComponent({
         const oldTileX = d.x0 + gutter / 2;
         const oldTileY = d.y0 + gutter / 2;
 
-        // Scale factors: how much to grow the tile
         const sx = treeW / oldTileWidth;
         const sy = treeH / oldTileHeight;
-
-        // Translation to move clicked tile to origin
         const dx = oldTileX;
         const dy = oldTileY;
 
-        zoomStateRef.current = { dx, dy, sx, sy };
-        zoomTileRef.current = e.currentTarget;
-        d3.select(this).classed('selected', true);
-
-        // Hide all text before zoom and disable hover effects
+        // Fade text, then zoom into the tile; navigation fires only after zoom completes
+        // so the chart stays frozen at the zoomed scale while data loads.
         currentChart.selectAll('text').transition().duration(transitionDuration).attr('opacity', 0);
-        // svg.selectAll('g.treemap-piece').attr('pointer-events', 'none');
 
-        // Animate zoom on current chart
         currentChart
           .transition().duration(transitionDuration)
           .attr('transform', `translate(${-dx * sx},${-dy * sy}) scale(${sx},${sy})`)
           .on('end', () => {
-            //finalize swap
-            console.log('finalize swap');
-
-            const wrapperNode = d3.select(svgRef.current).select('g.chart-wrapper').node();
-
-            //move g.chart-next to wrapper node and reset scale so we can swap the children
-            const nextChart = d3.select(svgRef.current).select('g.chart-next');
-            const nextNode = nextChart.node();
-            nextChart.attr('transform', 'translate(0,0) scale(1,1)');
-            wrapperNode.appendChild(nextNode);
-
-            currentChart
-              .transition()
-              .duration(300)
-              .style('opacity', 0)
-              .on('end', () => {
-                const oldChildren = currentChart.selectChildren().nodes();
-                oldChildren.forEach((child) => child.remove());
-
-                currentChart.attr('transform', 'translate(0,0) scale(1,1)');
-                currentChart.style('opacity', 1);
-
-                const nextChildren = nextChart.selectChildren().nodes();
-                nextChildren.forEach((child) => currentChart.node().appendChild(child));
-
-                isNavigatingRef.current = false;
-              });
+            if (!d?.data?.value?.isTailBucket) {
+              navigateToRef.current(d?.data?.value?.id, d?.data?.key, { isTerminal: d?.data?.value?.isTerminal });
+            }
           });
 
-        // "อื่นๆ" bucket — play zoom animation then open overlay
+        // "อื่นๆ" bucket — open overlay after zoom
         if (d?.data?.value?.isTailBucket) {
           setTimeout(() => setOverlayOpen(true), transitionDuration);
-          return;
-        }
-
-        // Only navigate if not at leaf level
-        if (!isLeafLevel) {
-          isNavigatingRef.current = true;
-          navLoadTimerRef.current = setTimeout(() => {
-            if (isNavigatingRef.current) setIsNavLoading(true);
-          }, 300);
-          // Start navigation immediately so the new chart can render while the zoom runs.
-          navigateToRef.current(d?.data?.value?.id, d?.data?.key, { isTerminal: d?.data?.value?.isTerminal });
         }
       });
 
@@ -734,12 +639,6 @@ function TreemapComponent({
       .attr('rx', 3)
       .attr('width', (d) => Math.max((d.x1 - d.x0) || 0, 0))
       .attr('height', (d) => Math.max((d.y1 - d.y0) || 0, 0));
-
-    // Reset zoom transform when data changes (do NOT reset during active navigation)
-    if (!isNavigatingRef.current) {
-      zoomStateRef.current = { dx: 0, dy: 0, sx: 1, sy: 1 };
-      currentChart.attr('transform', 'translate(0,0) scale(1,1)');
-    }
 
     treemapPieceMerged.select('text.text-name')
       .attr('x', 5)
@@ -767,34 +666,11 @@ function TreemapComponent({
         return itemGrowth != null ? `${itemGrowth >= 0 ? '+' : ''}${(itemGrowth * 100).toFixed(1)}%` : '';
       })
       .attr('fill', (d) => (d?.GROWTH > 0 ? '#4f4' : d?.GROWTH < 0 ? '#f44' : 'white'));
-
-    if (isNavigatingRef.current) {
-      const { dx, dy, sx, sy } = zoomStateRef.current;
-      const nextChart = d3.select(svgRef.current).select('g.chart-next');
-      // chart-next is already in wrapper, just scale it to appear normal within the zoomed view
-      nextChart.attr('transform', `translate(${dx},${dy}) scale(${1 / sx},${1 / sy})`)
-    }
     };
 
-    // If navigating and chart-next is nested in a tile from zoom setup, move it back to wrapper
-    if (isNavigatingRef.current) {
-      const wrapperNode = d3.select(svgRef.current).select('g.chart-wrapper').node();
-      const nextChartNode = d3.select(svgRef.current).select('g.chart-next').node();
-      if (nextChartNode && nextChartNode.parentNode !== wrapperNode) {
-        nextChartNode.setAttribute('transform', 'translate(0,0) scale(1,1)');
-        wrapperNode.appendChild(nextChartNode);
-      }
-    }
-
-    if (renderNow) {
-      // During navigation, render immediately - don't wait for rAF
-      performRender();
-    } else {
-      // On initial load/data change, use rAF to let React paint spinner first
-      const raf = requestAnimationFrame(performRender);
-      // eslint-disable-next-line consistent-return
-      return () => cancelAnimationFrame(raf);
-    }
+    const raf = requestAnimationFrame(performRender);
+    // eslint-disable-next-line consistent-return
+    return () => cancelAnimationFrame(raf);
   }, [
     svgRef,
     data,
@@ -875,22 +751,7 @@ function TreemapComponent({
             <span style={{ opacity: 0.7, fontSize: 13 }}>กำลังโหลด...</span>
           </FullView>
         )}
-      {isNavLoading && !isLoading && (
-        <FullView
-          style={{
-            backgroundColor: '#000c',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 12,
-            flexDirection: 'column',
-            pointerEvents: 'none',
-          }}
-        >
-          <Spinner size={48} thickness={4} />
-          <span style={{ opacity: 0.7, fontSize: 13 }}>กำลังโหลด...</span>
-        </FullView>
-      )}
-      {!isLoading && !isNavLoading && data?.rows?.length === 0 && isLeafLevel && (
+      {!isLoading && data?.rows?.length === 0 && isLeafLevel && (
         <FullView
           style={{
             backgroundColor: '#0008',
@@ -910,7 +771,7 @@ function TreemapComponent({
           </div>
         </FullView>
       )}
-      {!isLoading && !isNavLoading && data?.rows?.length === 0 && !isLeafLevel && (
+      {!isLoading && data?.rows?.length === 0 && !isLeafLevel && (
         <FullView
           style={{
             backgroundColor: '#0008',
