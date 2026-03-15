@@ -41,10 +41,25 @@ const TextInput = styled.input`
   }
 `;
 
+const Button = styled.button`
+  background: none;
+  border: 1px solid ${props => props.isActive ? 'rgba(240, 220, 100, 1)' : 'rgba(255, 255, 255, 0.6)'};
+  border-radius: 4px;
+  color: ${props => props.isActive ? 'rgba(240, 220, 100, 1)' : 'rgba(255, 255, 255, 0.6)'};
+  cursor: pointer;
+  font-size: 0.875rem;
+  padding: 2px 6px;
+
+  &:hover {
+    background: ${props => props.isActive ? 'rgba(240, 220, 100, 0.4)' : 'rgba(255, 255, 255, 0.2)'};
+  }
+`;
+
 const BasicUi = {
   Container,
   Title,
   TextInput,
+  Button,
 };
 
 export default BasicUi;

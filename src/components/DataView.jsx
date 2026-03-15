@@ -330,26 +330,18 @@ function DataView({
           </HideOnMobile>
           {canGoBack && (
             <div>
-              <button
+              <Ui.Button
                 type="button"
                 onClick={goBack}
                 style={{
-                  background: 'none',
-                  border: '1px solid rgba(240, 220, 100, 1)',
-                  borderRadius: 4,
-                  color: 'rgba(240, 220, 100, 1)',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  padding: '1px 6px',
-                  lineHeight: '1.4',
                   marginBottom: 16,
                   marginRight: 16,
-                  marginTop: -4,
                   whiteSpace: 'nowrap',
                 }}
+                isActive={true}
               >
                 ← ย้อนกลับ
-              </button>
+              </Ui.Button>
             </div> // FIXME: refactor
           )}
           <SidebarFilterGroup>
@@ -380,24 +372,18 @@ function DataView({
             <SidebarFilterGroupTitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               กรอง
               {(Object.keys(filters).length > 0 || canGoBack) && (
-                <button
+                <Ui.Button
                   type="button"
                   onClick={resetAll}
                   style={{
-                    background: 'none',
-                    border: '1px solid rgba(240, 220, 100, 1)',
-                    borderRadius: 4,
-                    color: 'rgba(240, 220, 100, 1)',
-                    cursor: 'pointer',
-                    fontSize: '0.75rem',
-                    padding: '1px 6px',
-                    lineHeight: '1.4',
                     marginLeft: 8,
                     marginTop: -4,
+                    marginBottom: -4,
                   }}
+                  isActive={true}
                 >
                   รีเซ็ต
-                </button>
+                </Ui.Button>
               )}
             </SidebarFilterGroupTitle>
             <FilterGroupContainer>

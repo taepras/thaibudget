@@ -182,11 +182,28 @@ function PercentageChangeList({
     setSearchFilter('');
   }, [data]);
 
+  const [typeFilter, setTypeFilter] = useState('all');
+
+  const toggleTypeFilter = (type) => {
+    setTypeFilter((prev) => (prev === type ? 'all' : type));
+  }
+
   const filteredChangeData = useMemo(() => {
-    if (!searchFilter) return changeData;
+    let filtered = changeData;
+    if (typeFilter === 'new') {
+      filtered = filtered.filter((item) => item.isNew);
+    } else if (typeFilter === 'increase') {
+      filtered = filtered.filter((item) => item.growth > 0);
+    } else if (typeFilter === 'decrease') {
+      filtered = filtered.filter((item) => item.growth < 0);
+    } else if (typeFilter === 'discontinued') {
+      filtered = filtered.filter((item) => item.amountCurrent === 0 && item.amountPrev > 0);
+    }
+
+    if (!searchFilter) return filtered;
     const lowerFilter = searchFilter.toLowerCase();
-    return changeData.filter((item) => item.name.toLowerCase().includes(lowerFilter));
-  }, [changeData, searchFilter]);
+    return filtered.filter((item) => item.name.toLowerCase().includes(lowerFilter));
+  }, [changeData, searchFilter, typeFilter]);
 
   return (
     <Ui.Container>
@@ -224,6 +241,26 @@ function PercentageChangeList({
           onInput={(e) => setSearchFilter(e.target.value)}
           value={searchFilter || ''}
         />
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          padding: '4px 0',
+        }}
+      >
+        <Ui.Button onClick={() => toggleTypeFilter('new')} isActive={typeFilter === 'new'}>
+          ปีที่แล้วไม่มี
+        </Ui.Button>
+        <Ui.Button onClick={() => toggleTypeFilter('increase')} isActive={typeFilter === 'increase'}>
+          เพิ่มขึ้น
+        </Ui.Button>
+        <Ui.Button onClick={() => toggleTypeFilter('decrease')} isActive={typeFilter === 'decrease'}>
+          ลดลง
+        </Ui.Button>
+        <Ui.Button onClick={() => toggleTypeFilter('discontinued')} isActive={typeFilter === 'discontinued'}>
+          ตัดจากปีก่อน
+        </Ui.Button>
       </div>
 
       {changeData.length > 0 && (
@@ -287,10 +324,10 @@ function PercentageChangeList({
               </>
             );
           })()}
+          {filteredChangeData.length === 0 && (
+            <div style={{ opacity: 0.6, paddingTop: 16 }}>ไม่มีข้อมูล</div>
+          )}
         </ListContainer>
-      )}
-      {changeData.length === 0 && (
-        <div style={{ opacity: 0.5 }}>ไม่มีข้อมูล</div>
       )}
     </Ui.Container>
   );
