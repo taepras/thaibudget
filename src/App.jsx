@@ -1,6 +1,7 @@
 import React, {
   useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
+import { unstable_batchedUpdates } from 'react-dom';
 import * as d3 from 'd3';
 import styled from 'styled-components';
 import { useHistory, useLocation } from 'react-router-dom';
@@ -79,11 +80,6 @@ function App() {
     const currentFilterNames = filterNamesRef.current;
     const currentNavHistory = navHistoryRef.current;
 
-    setNavHistory([
-      ...currentNavHistory,
-      { navGroupBy: currentNavGroupBy, navDisplayName: currentNavDisplayName, filters: currentFilters, filterNames: currentFilterNames },
-    ]);
-
     const newFilters = { ...currentFilters };
     let nextGroupBy;
 
@@ -104,10 +100,16 @@ function App() {
       nextGroupBy = getNextInHierarchy(currentNavGroupBy, newFilters);
     }
 
-    setFilters(newFilters);
-    setNavGroupBy(nextGroupBy);
-    setFilterNames({ ...currentFilterNames, [currentNavGroupBy]: clickedDisplayName ?? String(key) });
-    setNavDisplayName(clickedDisplayName ?? String(key));
+    unstable_batchedUpdates(() => {
+      setNavHistory([
+        ...currentNavHistory,
+        { navGroupBy: currentNavGroupBy, navDisplayName: currentNavDisplayName, filters: currentFilters, filterNames: currentFilterNames },
+      ]);
+      setFilters(newFilters);
+      setNavGroupBy(nextGroupBy);
+      setFilterNames({ ...currentFilterNames, [currentNavGroupBy]: clickedDisplayName ?? String(key) });
+      setNavDisplayName(clickedDisplayName ?? String(key));
+    });
   }, []);
 
   const onFilterChange = useCallback((key, value, name) => {

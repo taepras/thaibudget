@@ -373,6 +373,9 @@ function TreemapComponent({
   // Set to true just before navigating from a zoom-click so the render effect
   // can crossfade the new chart over the frozen zoomed state.
   const isFromZoomRef = useRef(false);
+  // Only trigger crossfade when `data` is new — not when other deps like isLeafLevel
+  // change in the intermediate render that fires before the fetch completes.
+  const prevDataRef = useRef(data);
   // While true, mouseenter effects (drop-shadow, tooltip) and stroke highlights are
   // suppressed. Cleared on the first mousemove after the crossfade has fully settled.
   const suppressHoverRef = useRef(false);
@@ -472,8 +475,9 @@ function TreemapComponent({
       (d) => (d.x1 - d.x0) >= MIN_TILE_PX && (d.y1 - d.y0) >= MIN_TILE_PX,
     );
 
-    const isCrossFade = isFromZoomRef.current;
-    isFromZoomRef.current = false;
+    const isCrossFade = isFromZoomRef.current && data !== prevDataRef.current;
+    if (data !== prevDataRef.current) prevDataRef.current = data;
+    if (!isCrossFade) isFromZoomRef.current = false;
 
     const currentChart = d3.select(svgRef.current).select('g.chart');
     const renderChart = isCrossFade
