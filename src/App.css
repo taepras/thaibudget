@@ -18,6 +18,14 @@ button {
   stroke: #fff;
 }
 
+.app-tooltip {
+  max-width: 280px !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  text-align: left !important;
+  line-height: 1.4 !important;
+}
+
 .treemap-piece:focus {
   outline: none;
 }

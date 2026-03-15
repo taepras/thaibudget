@@ -475,7 +475,7 @@ function App() {
       >
 
       </div> */}
-      <ReactTooltip html />
+      <ReactTooltip html className="app-tooltip" />
     </FullView>
   );
 }

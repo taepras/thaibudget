@@ -8,6 +8,7 @@ import ReactTooltip from 'react-tooltip';
 import { useHistory, useLocation } from 'react-router-dom';
 import { abbreviateNumber, signedNumber } from '../utils/numberFormat';
 import FullView from './FullView';
+import Spinner from './Spinner';
 import Ui from './BasicUi';
 import ItemDetailsModal from './ItemDetailsModal';
 
@@ -19,19 +20,6 @@ if (typeof document !== 'undefined' && !document.getElementById('treemap-spin-st
   s.id = 'treemap-spin-style';
   s.textContent = '@keyframes _tm_spin { to { transform: rotate(360deg); } }';
   document.head.appendChild(s);
-}
-
-function Spinner({ size = 36, thickness = 3 }) {
-  return (
-    <div style={{
-      width: size, height: size,
-      border: `${thickness}px solid rgba(255,255,255,0.15)`,
-      borderTopColor: 'rgba(255,255,255,0.85)',
-      borderRadius: '50%',
-      animation: '_tm_spin 0.7s linear infinite',
-    }}
-    />
-  );
 }
 
 // ---------------------------------------------------------------------------

@@ -14,47 +14,7 @@ import MultiTierDropdownLink from './MultiTierDropdownLink';
 import ResizableSplitView from './ResizableSplitView';
 import Ui from './BasicUi';
 import SearchBar from './SearchBar';
-
-const BreadCrumbContainer = styled.div`
-  display: flex;
-  align-items: center;
-  font-size: 0.875rem;
-  flex-wrap: wrap;
-  gap: 8px;
-  opacity: 0.6;
-  // overflow-x: auto;
-
-  button {
-    background-color: transparent;
-    border: none;
-    color: white;
-    padding: 0;
-    text-align: left;
-    font-family: inherit;
-
-    &:hover {
-      text-decoration: underline;
-    }
-  }
-`;
-
-const BreadCrumbItem = styled.button`
-  background-color: transparent;
-  border: none;
-  color: white;
-  padding: 0;
-  text-align: left;
-  font-family: inherit;
-  text-decoration: underline;
-  white-space: nowrap;
-`
-
-const BreadCrumbText = styled.span`
-  color: white;
-  white-space: nowrap;
-`
-
-
+import Spinner from './Spinner';
 
 const ResponsiveImage = styled.img`
   width: 100%;
@@ -505,6 +465,23 @@ function DataView({
             </CreditLink>
           </HideOnMobile>
         </SidebarFilter>
+        <div style={{ position: 'relative', flexGrow: 1, overflow: 'hidden', display: 'flex' }}>
+          {isLoading && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.55)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              zIndex: 10,
+            }}>
+              <Spinner size={48} thickness={4} />
+              <span style={{ opacity: 0.7, fontSize: 13 }}>กำลังโหลด...</span>
+            </div>
+          )}
         <ResizableSplitView
           mainLabel="โครงสร้างงบ"
           sidebarLabel="รายการย่อย"
@@ -516,7 +493,7 @@ function DataView({
               ref={treemapRef}
               title={displayName}
               data={data}
-              isLoading={isLoading}
+              isLoading={false}
               filters={filters}
               setFilters={setFilters}
               setCurrentSum={(x) => { setCurrentSum(x); }}
@@ -551,6 +528,7 @@ function DataView({
             </>
           }
         />
+        </div>
       </DataViewContainer>
     </FullView>
   );

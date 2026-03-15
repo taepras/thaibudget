@@ -14,7 +14,7 @@ const Container = styled.div`
 const Title = styled.h3`
   margin: 0 0 12px 0;
   font-size: 1rem;
-  opacity: 0.8;
+  opacity: 0.6;
   word-break: break-word;
   margin-bottom: 0;
 `;
