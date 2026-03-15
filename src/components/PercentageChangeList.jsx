@@ -2,7 +2,7 @@ import React, {
   useMemo, useState, useRef, useCallback, useEffect,
 } from 'react';
 import styled from 'styled-components';
-import { abbreviateNumber, signedNumber } from '../utils/numberFormat';
+import { abbreviateGrowthRate, abbreviateNumber, signedNumber } from '../utils/numberFormat';
 import DropdownLink from './DropdownLink';
 import Ui from './BasicUi';
 
@@ -276,7 +276,7 @@ function PercentageChangeList({
                           {item.amountCurrent.toLocaleString()} บาท
                         </div>
                         <PercentChange growth={item.growth} style={{ color: displayColor }}>
-                          {item.isNew ? `รายการใหม่` : `${abbreviateNumber(item.diff, true)} บาท / ${signedNumber(item.growth * 100, 1)}%`}
+                          {item.isNew ? `รายการใหม่` : `${abbreviateNumber(item.diff, true)} บาท / ${abbreviateGrowthRate(item.growth)}`}
                         </PercentChange>
                       </ListItemDetails>
                     </ListItem>

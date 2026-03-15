@@ -5,7 +5,7 @@ import React, {
 import * as d3 from 'd3';
 import useDimensions from 'react-cool-dimensions';
 import ReactTooltip from 'react-tooltip';
-import { useHistory, useLocation } from 'react-router-dom';
+
 import { abbreviateNumber, signedNumber } from '../utils/numberFormat';
 import FullView from './FullView';
 import Spinner from './Spinner';
@@ -21,6 +21,8 @@ if (typeof document !== 'undefined' && !document.getElementById('treemap-spin-st
   s.textContent = '@keyframes _tm_spin { to { transform: rotate(360deg); } }';
   document.head.appendChild(s);
 }
+
+const MAX_TILES = 500;
 
 // ---------------------------------------------------------------------------
 // Sub-treemap overlay shown when user clicks the "อื่นๆ" bucket
@@ -109,7 +111,6 @@ function TailOverlay({
 
     const merged = svg.selectAll('g.sub-piece')
       .data(leaves, (d) => `gsg-${d?.data?.key?.replaceAll(/[ ()]/g, '')}`)
-      // .data(leaves, (d) => d?.data?.value?.id ?? d?.data?.key)
       .join(
         (enter) => {
           const g = enter.append('g').attr('class', 'sub-piece')
@@ -147,7 +148,7 @@ function TailOverlay({
                 }
                 return;
               }
-              if (!isLeafLevel && d?.data?.value?.id != null) {
+              if (d?.data?.value?.id != null) {
                 navigateTo(d.data.value.id, d.data.key, { isTerminal: d.data.value.isTerminal });
                 onClose();
               }
@@ -170,8 +171,6 @@ function TailOverlay({
 
           return g;
         },
-        (update) => update,
-        (exit) => exit.remove(),
       );
 
     merged.attr('transform', (d) => `translate(${d.x0},${d.y0})`);
@@ -280,8 +279,6 @@ function TreemapComponent({
     },
   });
 
-  // const history = useHistory();
-
   const svgRef = useRef(null);
   const navigateToRef = useRef(navigateTo);
   useEffect(() => { navigateToRef.current = navigateTo; }, [navigateTo]);
@@ -317,10 +314,6 @@ function TreemapComponent({
     return node?.GROWTH != null ? colorScale(node.GROWTH) : '#666666';
   }, [colorScale]);
 
-  // convert to d3 nest format: { key, values: [{ key, value }] }
-  // Cap at MAX_TILES items — beyond this the treemap layout + DOM work freezes the page.
-  // Tail items are merged into a single "อื่นๆ" bucket.
-  const MAX_TILES = 500;
   const nestedData = useMemo(() => {
     if (!data.rows) return { key: null, values: [] };
 
@@ -370,12 +363,6 @@ function TreemapComponent({
   useEffect(() => {
     dataRowsRef.current = data.rows || [];
   }, [data.rows]);
-
-  const growth = useMemo(() => {
-    const current = data.totals?.[primaryYear];
-    const lastYear = data.totals?.[compareYear];
-    return lastYear > 0 ? (current / lastYear) - 1 : null;
-  }, [data, primaryYear, compareYear]);
 
   const [overlayCount, setOverlayCount] = useState(BATCH_SIZE);
   const [overlayOpen, setOverlayOpen] = useState(false);
@@ -439,17 +426,6 @@ function TreemapComponent({
   }, [overlayOpen]);
 
   useEffect(() => {
-    // data update
-    console.log('useeffect called', {
-      svgRef,
-      data,
-      nestedData,
-      width,
-      height,
-      padding,
-      gutter,
-      // getNodeColor,
-    });
     if (!svgRef.current) return;
 
     const performRender = () => {
@@ -483,10 +459,8 @@ function TreemapComponent({
     const treeW = fullVal <= 0 ? width - 2 * padding : treeCurrentArea / treeH;
 
     const treemap = d3.treemap()
-      // .tile(d3.treemapResquarify)
       .size([treeW, treeH])
       .padding(0);
-    // .round(true);
 
     treemap(root);
 
@@ -517,7 +491,6 @@ function TreemapComponent({
     const treemapPieceMerged = renderChart
       .selectAll('g.treemap-piece')
       .data(visibleLeaves, (d) => `g-${d?.data?.key?.replaceAll(/[ ()]/g, '')}`)
-      // .data(visibleLeaves, (d) => `${data.name}-${d?.data?.value?.id ?? d?.data?.key}`)
       .join(
         (enter) => {
           const g = enter
@@ -812,42 +785,17 @@ function TreemapComponent({
             <span style={{ opacity: 0.7, fontSize: 13 }}>กำลังโหลด...</span>
           </FullView>
         )}
-      {!isLoading && data?.rows?.length === 0 && isLeafLevel && (
-        <FullView
-          style={{
-            backgroundColor: '#0008',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 16,
-            flexDirection: 'column',
-          }}
-        >
-          <div style={{ fontSize: 48, opacity: 0.3 }}>🔍</div>
+      {!isLoading && data?.rows?.length === 0 && (
+        <FullView style={{ backgroundColor: '#0008', alignItems: 'center', justifyContent: 'center', gap: 16, flexDirection: 'column' }}>
+          <div style={{ fontSize: 48, opacity: 0.3 }}>{isLeafLevel ? '🔍' : '📭'}</div>
           <div style={{ textAlign: 'center', maxWidth: '400px', padding: '0 24px' }}>
-            <div style={{ fontSize: 18, marginBottom: 8, opacity: 0.9 }}>ไม่พบรายการงบประมาณ</div>
-            <div style={{ fontSize: 14, opacity: 0.6, lineHeight: 1.5 }}>
-              ไม่มีรายการงบประมาณที่ตรงกับตัวกรองที่เลือก<br />
-              ลองเปลี่ยนตัวกรองหรือย้อนกลับไปดูระดับก่อนหน้า
+            <div style={{ fontSize: 18, marginBottom: 8, opacity: 0.9 }}>
+              {isLeafLevel ? 'ไม่พบรายการงบประมาณ' : 'ไม่มีข้อมูลในหมวดนี้'}
             </div>
-          </div>
-        </FullView>
-      )}
-      {!isLoading && data?.rows?.length === 0 && !isLeafLevel && (
-        <FullView
-          style={{
-            backgroundColor: '#0008',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 16,
-            flexDirection: 'column',
-          }}
-        >
-          <div style={{ fontSize: 48, opacity: 0.3 }}>📭</div>
-          <div style={{ textAlign: 'center', maxWidth: '400px', padding: '0 24px' }}>
-            <div style={{ fontSize: 18, marginBottom: 8, opacity: 0.9 }}>ไม่มีข้อมูลในหมวดนี้</div>
             <div style={{ fontSize: 14, opacity: 0.6, lineHeight: 1.5 }}>
-              ไม่มีข้อมูลงบประมาณที่ตรงกับเงื่อนไขที่เลือก<br />
-              กรุณาเลือกหมวดอื่น หรือย้อนกลับไปยังหน้าก่อนหน้า
+              {isLeafLevel
+                ? <>ไม่มีรายการงบประมาณที่ตรงกับตัวกรองที่เลือก<br />ลองเปลี่ยนตัวกรองหรือย้อนกลับไปดูระดับก่อนหน้า</>
+                : <>ไม่มีข้อมูลงบประมาณที่ตรงกับเงื่อนไขที่เลือก<br />กรุณาเลือกหมวดอื่น หรือย้อนกลับไปยังหน้าก่อนหน้า</>}
             </div>
           </div>
         </FullView>

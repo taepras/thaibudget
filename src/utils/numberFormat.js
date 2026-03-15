@@ -94,6 +94,17 @@ export function formatNumberWithCommas(num) {
 
 
 
+export function abbreviateGrowthRate(ratio) {
+  if (ratio === null || ratio === undefined) return 'N/A';
+  if (ratio >= 1) {
+    return `${(ratio + 1).toFixed(1)}x`;
+  } else {
+    const sign = ratio < 0 ? '' : '+';
+    return `${sign}${(ratio * 100).toFixed(1)}%`;
+  }
+}
+
+
 
 export function signedNumber(num, decimals = -1) {
   if (decimals >= 0)
