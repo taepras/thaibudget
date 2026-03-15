@@ -375,6 +375,17 @@ async function runImport() {
       await client.query("drop index if exists idx_catpath_descendant");
       await client.query("drop index if exists idx_bupath_ancestor");
       await client.query("drop index if exists idx_bupath_descendant");
+      // Performance indexes (add_performance_indexes.sql)
+      await client.query("drop index if exists idx_fact_year_bu");
+      await client.query("drop index if exists idx_fact_year_category");
+      await client.query("drop index if exists idx_fact_year_budget_plan");
+      await client.query("drop index if exists idx_fact_year_output");
+      await client.query("drop index if exists idx_fact_year_project");
+      await client.query("drop index if exists idx_bupath_desc_anc");
+      await client.query("drop index if exists idx_catpath_desc_anc");
+      await client.query("drop index if exists idx_bu_level");
+      await client.query("drop index if exists idx_cat_level");
+      await client.query("drop index if exists idx_cat_parent_id");
       console.log("Indexes dropped for fast bulk insert");
     }
 
@@ -572,6 +583,17 @@ async function runImport() {
       await client.query("create index idx_catpath_descendant on dim_category_path (descendant_id)");
       await client.query("create index idx_bupath_ancestor on dim_budgetary_unit_path (ancestor_id)");
       await client.query("create index idx_bupath_descendant on dim_budgetary_unit_path (descendant_id)");
+      // Performance indexes (add_performance_indexes.sql)
+      await client.query("create index idx_fact_year_bu on fact_budget_item (fiscal_year, budgetary_unit_id)");
+      await client.query("create index idx_fact_year_category on fact_budget_item (fiscal_year, category_id)");
+      await client.query("create index idx_fact_year_budget_plan on fact_budget_item (fiscal_year, budget_plan_id)");
+      await client.query("create index idx_fact_year_output on fact_budget_item (fiscal_year, output_id)");
+      await client.query("create index idx_fact_year_project on fact_budget_item (fiscal_year, project_id)");
+      await client.query("create index idx_bupath_desc_anc on dim_budgetary_unit_path (descendant_id, ancestor_id)");
+      await client.query("create index idx_catpath_desc_anc on dim_category_path (descendant_id, ancestor_id)");
+      await client.query("create index idx_bu_level on dim_budgetary_unit (level)");
+      await client.query("create index idx_cat_level on dim_category (level)");
+      await client.query("create index idx_cat_parent_id on dim_category (parent_id)");
       console.log("Indexes recreated");
     }
   } catch (error) {
