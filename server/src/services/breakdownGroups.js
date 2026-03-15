@@ -34,9 +34,11 @@ export const breakdownGroups = {
     includeNullCategory: true,
   },
   item: {
-    select: "f.item_description as id, f.item_description as name",
-    join: "",
-    groupBy: "f.item_description",
+    // When item_description is null, fall back to the deepest (leaf) category name so
+    // every row has a meaningful display label. The fact row itself is still terminal.
+    select: "coalesce(f.item_description, c_item.name, 'ไม่ระบุรายการ') as id, coalesce(f.item_description, c_item.name, 'ไม่ระบุรายการ') as name",
+    join: "left join dim_category c_item on f.category_id = c_item.id",
+    groupBy: "f.item_description, c_item.name",
   },
   obliged: {
     select: `

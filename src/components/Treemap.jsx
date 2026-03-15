@@ -557,11 +557,11 @@ function TreemapComponent({
         }
 
         const nodeGrowth = d?.GROWTH ?? 0;
-        const lastYear = d?.AMOUNT_LASTYEAR;
+        const lastYear = d?.AMOUNT_LASTYEAR ?? 0;
         const growthText = nodeGrowth != null
           ? `<span style="color:${nodeGrowth > 0 ? '#25d925' : '#f11919'}">${abbreviateGrowthRate(nodeGrowth)}</span>`
-          : 'N/A';
-        const lastYearText = lastYear != null ? abbreviateNumber(lastYear) : 'N/A';
+          : 'ใหม่';
+        const lastYearText = abbreviateNumber(lastYear);
         const tip = [
           `<div><b>${d?.data?.key}</b></div>`,
           `<div style="opacity: 0.6">${primaryYear}: ${abbreviateNumber(d?.value)} บาท</div>`,
@@ -671,7 +671,7 @@ function TreemapComponent({
       .attr('opacity', 1)
       .text((d) => {
         if (d.x1 - d.x0 <= 40 || d.y1 - d.y0 <= 44) return '';
-        return abbreviateGrowthRate(d?.GROWTH);
+        return d?.GROWTH == null ? 'ใหม่' : abbreviateGrowthRate(d?.GROWTH);
       })
       .attr('fill', (d) => (d?.GROWTH > 0 ? '#4f4' : d?.GROWTH < 0 ? '#f44' : 'white'));
 

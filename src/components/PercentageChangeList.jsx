@@ -138,10 +138,10 @@ function PercentageChangeList({
   }, []);
 
   const sortModeLabels = {
-    percent: '% ความเปลี่ยนแปลง',
-    diff: 'จำนวนเงินเปลี่ยนแปลง',
-    amount: 'จำนวนเงินงบประมาณ',
-    alphabet: 'ตัวอักษร',
+    amount: 'งบมากที่สุด',
+    percent: 'เพิ่มขึ้นสูงสุด (%)',
+    diff: 'เพิ่มขึ้นสูงสุด (บาท)',
+    alphabet: 'ชื่อรายการ',
   };
 
   const changeData = useMemo(() => {
@@ -222,13 +222,8 @@ function PercentageChangeList({
             }}
           >
             <DropdownLink
-              label={`เรียงตาม ${sortModeLabels[sortMode]}${compareYear && ['percent', 'diff'].includes(sortMode) ? ` เทียบกับปี ${String(compareYear).slice(-2)}` : ''}`}
-              options={[
-                { value: 'percent', label: '% ความเปลี่ยนแปลง' },
-                { value: 'diff', label: 'จำนวนเงินเปลี่ยนแปลง' },
-                { value: 'amount', label: 'จำนวนเงินงบประมาณ' },
-                { value: 'alphabet', label: 'ชื่อตัวอักษร (A-Z)' },
-              ]}
+              label={`เรียง: ${sortModeLabels[sortMode]}${compareYear && ['percent', 'diff'].includes(sortMode) ? ` เทียบกับปี ${String(compareYear).slice(-2)}` : ''}`}
+              options={Object.entries(sortModeLabels).map(([value, label]) => ({ value, label }))}
               value={sortMode}
               onChange={setSortMode}
             />
@@ -301,7 +296,10 @@ function PercentageChangeList({
                         backgroundColor: hoveredItemName === item.name ? 'rgba(255,255,255,0.1)' : 'transparent',
                         borderRadius: '4px',
                       }}
-                      onClick={() => onItemClick(item.name)}
+                      onClick={() => {
+                        onItemClick(item.name);
+                        setTypeFilter('all');
+                      }}
                       onMouseEnter={() => setHoveredItemName(item.name)}
                       onMouseLeave={() => setHoveredItemName(null)}
                     >
