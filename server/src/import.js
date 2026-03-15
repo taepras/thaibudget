@@ -123,8 +123,9 @@ async function getOrCreateBudgetaryUnit(client, ministryName, unitName, cache, p
     }
   }
 
-  // If no unit name, return ministry ID
-  if (!unitName) {
+  // If no unit name, OR the unit name is identical to the ministry (e.g. งบกลาง),
+  // treat the ministry itself as the terminal unit — no level-2 row needed.
+  if (!unitName || unitName === ministryName) {
     return ministryId;
   }
 
@@ -236,7 +237,8 @@ async function preloadDimensions(client, allRecords, { budgetaryUnitCache, budge
 
     if (ministryName) {
       ministryNames.add(ministryName);
-      if (unitName) {
+      // Skip level-2 when unit name equals ministry name (e.g. งบกลาง — one-tier)
+      if (unitName && unitName !== ministryName) {
         buPairs.set(`${ministryName}::${unitName}`, { ministryName, unitName });
       }
     }

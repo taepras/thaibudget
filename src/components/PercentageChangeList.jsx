@@ -251,7 +251,8 @@ function PercentageChangeList({
                   let displayColor = '';
                   if (item.isNew) displayColor = '#00cccc';
                   else if (item.growth > 0.05) displayColor = '#00ac00';
-                  else if (item.growth > 0) displayColor = '#88dd88';
+                  else if (item.growth > 0.01) displayColor = '#88dd88';
+                  else if (item.growth > -0.01) displayColor = '#999999';
                   else if (item.growth > -0.05) displayColor = '#ff9999';
                   else displayColor = '#cc0000';
                   return (

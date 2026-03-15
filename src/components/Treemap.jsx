@@ -122,7 +122,7 @@ function TailOverlay({
                 .select('rect.box')
                 .style('filter', 'drop-shadow(0 0 3px rgba(255,255,255,0.8))');
 
-              const tip = `${d?.data?.key}<br>${abbreviateNumber(d?.value)}<br>เติบโต: ${d?.GROWTH != null ? `${(d.GROWTH * 100).toFixed(1)}%` : 'N/A'}`;
+              const tip = `${d?.data?.key}<br>${abbreviateNumber(d?.value)}<br>เติบโต: ${d?.GROWTH != null ? `${(d.GROWTH * 100).toFixed(1)}%` : 'ใหม่'}`;
               e.currentTarget.setAttribute('data-html', 'true');
               e.currentTarget.setAttribute('data-tip', tip);
               ReactTooltip.show(e.currentTarget);
