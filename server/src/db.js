@@ -2,11 +2,12 @@ import pg from "pg";
 
 const { Pool } = pg;
 
+const isRemote = process.env.DATABASE_URL?.includes('render.com') ||
+                 process.env.DATABASE_URL?.includes('supabase.co');
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('render.com')
-    ? { rejectUnauthorized: false }
-    : false,
+  ssl: isRemote ? { rejectUnauthorized: false } : false,
 });
 
 export async function query(sql, params = []) {
