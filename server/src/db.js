@@ -8,6 +8,7 @@ const isRemote = process.env.DATABASE_URL?.includes('render.com') ||
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: isRemote ? { rejectUnauthorized: false } : false,
+  connectionTimeoutMillis: 5000,
 });
 
 export async function query(sql, params = []) {
